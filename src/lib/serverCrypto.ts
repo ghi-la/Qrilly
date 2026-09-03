@@ -184,6 +184,10 @@ export const INVOICE_ENCRYPTED_PATHS = [
   'groups.[].items.[].description',
 ];
 
+/** A work entry's free-text note is the only field on it that isn't already
+ * either a plain category name (from the preset) or a reference id. */
+export const WORK_ENTRY_ENCRYPTED_PATHS = ['note'];
+
 export const encryptDoc = (
   dek: webcrypto.CryptoKey,
   doc: Record<string, unknown>,

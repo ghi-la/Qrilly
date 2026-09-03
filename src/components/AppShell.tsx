@@ -14,6 +14,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import DescriptionIcon from '@mui/icons-material/Description';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -34,6 +35,7 @@ const WIDTH = 232;
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: <SpaceDashboardIcon /> },
+  { href: '/entries', label: 'Work log', icon: <AccessTimeIcon /> },
   { href: '/invoices', label: 'Invoices', icon: <DescriptionIcon /> },
   { href: '/clients', label: 'Clients', icon: <PeopleIcon /> },
   { href: '/presets', label: 'Presets', icon: <TuneIcon /> },

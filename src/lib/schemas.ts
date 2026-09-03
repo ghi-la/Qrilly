@@ -96,6 +96,17 @@ export const invoiceSchema = z.object({
   roundTo5Cents: z.boolean().default(false),
   message: trimmed(140).default(''),
   notes: trimmed(2000).default(''),
+  /** Work entries this invoice bills; set once created, never sent for an edit. */
+  sourceEntryIds: z.array(z.string()).max(200).optional(),
+});
+
+export const workEntrySchema = z.object({
+  presetId: z.string().min(1, 'Pick a preset.'),
+  clientId: z.string().min(1, 'Pick a client.'),
+  groupName: trimmed(60).min(1, 'Pick a group.'),
+  quantity: z.number().finite(),
+  note: trimmed(500).default(''),
+  entryDate: z.coerce.date(),
 });
 
 export const settingsSchema = z.object({

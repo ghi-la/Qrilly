@@ -2,6 +2,7 @@
 
 import { Button, Card, CardContent, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid2';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddIcon from '@mui/icons-material/Add';
 import Link from 'next/link';
 import useSWR from 'swr';
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const { data: stats, mutate: mutateStats } = useSWR<{
     byStatus: StatusRow[];
     overdue: StatusRow[];
+    unbilledEntries: { count: number; clientCount: number };
   }>('/api/stats', fetcher);
   const {
     data: invoices,
@@ -58,9 +60,19 @@ export default function DashboardPage() {
         title="Dashboard"
         subtitle="Where your invoices stand right now."
         action={
-          <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddIcon />}>
-            New invoice
-          </Button>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button
+              component={Link}
+              href="/entries"
+              variant="outlined"
+              startIcon={<AccessTimeIcon />}
+            >
+              Quick work log
+            </Button>
+            <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddIcon />}>
+              New invoice
+            </Button>
+          </Stack>
         }
       />
 
@@ -82,6 +94,27 @@ export default function DashboardPage() {
             </Card>
           </Grid>
         ))}
+        <Grid size={{ xs: 6, md: 3 }}>
+          <Card
+            component={Link}
+            href="/entries"
+            sx={{ display: 'block', height: '100%', textDecoration: 'none' }}
+          >
+            <CardContent>
+              <Typography variant="overline" color="text.secondary">
+                Unbilled work
+              </Typography>
+              <Typography variant="h5" sx={{ mt: 0.5 }}>
+                {stats?.unbilledEntries.count ?? 0}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {stats?.unbilledEntries.clientCount
+                  ? `${stats.unbilledEntries.clientCount} client${stats.unbilledEntries.clientCount === 1 ? '' : 's'} waiting`
+                  : 'entries logged'}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       <Typography variant="h6" gutterBottom>

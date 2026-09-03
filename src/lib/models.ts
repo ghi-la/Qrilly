@@ -118,6 +118,29 @@ export interface InvoiceDoc {
   encVersion: number;
 }
 
+/**
+ * A quick log of work done - "2 hours of Consulting for Acme" - entered right
+ * after the job is finished, without going through the invoice editor. It
+ * doesn't become a bill until the user picks a batch of these (all under the
+ * same preset and client) and turns them into one from the entries page.
+ */
+export interface WorkEntryDoc {
+  userId: mongoose.Types.ObjectId;
+  presetId: mongoose.Types.ObjectId;
+  clientId: mongoose.Types.ObjectId;
+  groupName: string;
+  /** Snapshotted from the preset's matching line group when the entry was logged. */
+  unit: string;
+  unitPrice: number;
+  vatRate: number;
+  quantity: number;
+  note: string;
+  entryDate: Date;
+  billed: boolean;
+  invoiceId?: mongoose.Types.ObjectId | null;
+  encVersion: number;
+}
+
 /* ---------------------------------------------------------------- schemas */
 
 const AddressSchema = new Schema<Address>(
@@ -314,6 +337,30 @@ const InvoiceSchema = new Schema<InvoiceDoc>(
 InvoiceSchema.index({ userId: 1, number: 1 }, { unique: true });
 InvoiceSchema.index({ userId: 1, issueDate: -1 });
 
+const WorkEntrySchema = new Schema<WorkEntryDoc>(
+  {
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    presetId: { type: Schema.Types.ObjectId, ref: 'Preset', required: true },
+    clientId: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
+
+    groupName: { type: String, required: true },
+    unit: { type: String, default: '' },
+    unitPrice: { type: Number, default: 0 },
+    vatRate: { type: Number, default: 0 },
+    quantity: { type: Number, default: 0 },
+    note: { type: String, default: '' },
+    entryDate: { type: Date, required: true },
+
+    billed: { type: Boolean, default: false },
+    invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', default: null },
+
+    encVersion: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
+
+WorkEntrySchema.index({ userId: 1, presetId: 1, clientId: 1, billed: 1 });
+
 // `models.X ??` keeps hot reload from redefining a model that already exists.
 export const User = (models.User as mongoose.Model<UserDoc>) ?? model<UserDoc>('User', UserSchema);
 export const FileAsset =
@@ -325,5 +372,8 @@ export const Client =
   (models.Client as mongoose.Model<ClientDoc>) ?? model<ClientDoc>('Client', ClientSchema);
 export const Invoice =
   (models.Invoice as mongoose.Model<InvoiceDoc>) ?? model<InvoiceDoc>('Invoice', InvoiceSchema);
+export const WorkEntry =
+  (models.WorkEntry as mongoose.Model<WorkEntryDoc>) ??
+  model<WorkEntryDoc>('WorkEntry', WorkEntrySchema);
 
 export type { Currency, QrLanguage, ReferenceType };

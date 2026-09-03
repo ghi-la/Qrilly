@@ -1,4 +1,4 @@
-import { Invoice } from '@/lib/models';
+import { Invoice, WorkEntry } from '@/lib/models';
 import { HttpError, ok, requireUser, route } from '@/lib/api';
 import { firstIssue, invoiceSchema } from '@/lib/schemas';
 import { buildInvoiceDoc, decryptInvoices, encryptInvoice } from '@/lib/invoices';
@@ -41,6 +41,16 @@ export const POST = route(async (req: Request) => {
   const doc = await buildInvoiceDoc(userId, parsed.data);
   const encrypted = await encryptInvoice(userId, doc);
   const created = await Invoice.create(encrypted);
+
+  // Entries this invoice was built from are marked billed only now that the
+  // invoice itself exists - `billed: false` in the filter keeps two
+  // concurrent requests from both claiming the same entry.
+  if (parsed.data.sourceEntryIds?.length) {
+    await WorkEntry.updateMany(
+      { _id: { $in: parsed.data.sourceEntryIds }, userId, billed: false },
+      { $set: { billed: true, invoiceId: created._id } },
+    );
+  }
 
   return ok({ ...doc, _id: String(created._id) }, 201);
 });

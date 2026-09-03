@@ -27,7 +27,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type FocusEvent, type ReactNode } from 'react';
 import useSWR from 'swr';
 import {
@@ -98,6 +98,20 @@ interface ClientRecord {
   };
 }
 
+/** A logged work entry, as handed off from the entries page (see WorkEntryDoc). */
+interface WorkEntryData {
+  _id: string;
+  presetId: string;
+  clientId: string;
+  groupName: string;
+  unit: string;
+  unitPrice: number;
+  vatRate: number;
+  quantity: number;
+  note: string;
+  entryDate: string;
+}
+
 interface FormState {
   presetId: string;
   clientId: string;
@@ -125,6 +139,8 @@ interface FormState {
   roundTo5Cents: boolean;
   message: string;
   notes: string;
+  /** Work entries this invoice was built from, billed once it's saved. */
+  sourceEntryIds?: string[];
 }
 
 const blankForm = (): FormState => ({
@@ -263,10 +279,19 @@ function ContinueButton({ onClick, disabled }: { onClick: () => void; disabled?:
 
 export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // A batch of logged work entries handed off from the entries page, all
+  // sharing one preset and client - seeds this invoice's groups instead of
+  // the usual "one blank line per preset group" default.
+  const fromEntriesIds = searchParams.get('fromEntries');
   const { data: presets } = useSWR<Preset[]>('/api/presets', fetcher);
   const { data: clients } = useSWR<ClientRecord[]>('/api/clients', fetcher);
   const { data: invoice, isLoading } = useSWR<Record<string, unknown>>(
     invoiceId ? `/api/invoices/${invoiceId}` : null,
+    fetcher,
+  );
+  const { data: sourceEntries } = useSWR<WorkEntryData[]>(
+    !invoiceId && fromEntriesIds ? `/api/entries?ids=${fromEntriesIds}` : null,
     fetcher,
   );
 
@@ -300,15 +325,62 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       return;
     }
 
+    if (fromEntriesIds) {
+      if (!presets || !clients || !sourceEntries) return;
+      if (sourceEntries.length === 0) {
+        setError('Those entries could not be found.');
+        setReady(true);
+        return;
+      }
+      const [first] = sourceEntries;
+      const sameBatch = sourceEntries.every(
+        (e) => e.presetId === first.presetId && e.clientId === first.clientId,
+      );
+      if (!sameBatch) {
+        setError('Selected entries must all share the same preset and client.');
+        setReady(true);
+        return;
+      }
+      const preset = presets.find((p) => p._id === first.presetId);
+      if (!preset) {
+        setError('That preset no longer exists.');
+        setReady(true);
+        return;
+      }
+
+      applyPreset(preset, true);
+      pickClient(first.clientId);
+
+      const byGroup = new Map<string, InvoiceGroup>();
+      for (const entry of sourceEntries) {
+        if (!byGroup.has(entry.groupName)) {
+          byGroup.set(entry.groupName, { title: entry.groupName, showTitle: true, items: [] });
+        }
+        byGroup.get(entry.groupName)!.items.push({
+          description: entry.note || `${entry.groupName} - ${formatDate(entry.entryDate)}`,
+          quantity: entry.quantity,
+          unit: entry.unit,
+          unitPrice: entry.unitPrice,
+          vatRate: entry.vatRate,
+        });
+      }
+      update({
+        groups: [...byGroup.values()],
+        sourceEntryIds: sourceEntries.map((e) => e._id),
+      });
+      setReady(true);
+      return;
+    }
+
     if (!presets) return;
     const preset = presets.find((p) => p.isDefault) ?? presets[0];
     if (preset) applyPreset(preset, true);
     setReady(true);
-  }, [invoice, invoiceId, presets, ready]);
+  }, [invoice, invoiceId, presets, clients, sourceEntries, fromEntriesIds, ready]);
 
   // Once loaded, open the first step that still needs the user's attention.
   useEffect(() => {
-    if (ready) setActiveSection(invoiceId ? null : 'client');
+    if (ready) setActiveSection(invoiceId || fromEntriesIds ? null : 'client');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
