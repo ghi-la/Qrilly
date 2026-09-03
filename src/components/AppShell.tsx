@@ -149,6 +149,7 @@ export default function AppShell({
         component="main"
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           width: { md: `calc(100% - ${WIDTH}px)` },
           px: { xs: 2, sm: 3 },
           pt: { xs: 10, sm: 11 },

@@ -218,16 +218,19 @@ function Step({
 }) {
   return (
     <Accordion expanded={active} onChange={(_e, expanded) => onToggle(expanded)} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+      <AccordionSummary
+        expandIcon={<ExpandMoreIcon />}
+        sx={{ '& .MuiAccordionSummary-content': { minWidth: 0 } }}
+      >
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           spacing={{ xs: 0.25, sm: 2 }}
           alignItems={{ xs: 'flex-start', sm: 'center' }}
-          sx={{ width: '100%', pr: 1 }}
+          sx={{ width: '100%', minWidth: 0, pr: 1 }}
         >
           <Typography variant="h6">{title}</Typography>
           {!active && summary && (
-            <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0 }}>
+            <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0, width: '100%' }}>
               {summary}
             </Typography>
           )}
