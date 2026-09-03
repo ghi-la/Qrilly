@@ -17,6 +17,14 @@ export { fillTemplate } from './template';
 
 type InvoiceInput = z.infer<typeof invoiceSchema>;
 
+// Server-side messages stay English for now - see the i18n plan's "out of
+// scope" section on server-side error translation.
+const REFERENCE_ERROR_MESSAGES: Record<ReturnType<typeof deriveReference>['errorCode'] & string, string> = {
+  qrIbanRequired: 'A QRR reference requires a QR-IBAN (institution id 30000-31999).',
+  qrrOnQrIban: 'QR-IBAN accounts must use a QRR reference.',
+  referenceKeyRequired: 'Enter a reference key for the SCOR reference.',
+};
+
 /**
  * Turns a validated payload plus the referenced preset into the document that
  * gets stored. Creditor details are copied rather than referenced so that
@@ -41,8 +49,8 @@ export async function buildInvoiceDoc(
   // QRR references are numeric, so the invoice number's digits are the natural
   // seed when the user hasn't supplied their own key.
   const seed = input.referenceKey?.trim() || number.replace(/\D/g, '') || String(Date.now());
-  const { reference, error } = deriveReference(referenceType, iban, seed);
-  if (error) throw new HttpError(400, error);
+  const { reference, errorCode } = deriveReference(referenceType, iban, seed);
+  if (errorCode) throw new HttpError(400, REFERENCE_ERROR_MESSAGES[errorCode]);
 
   const totals = computeTotals(input.groups, {
     vatIncluded: input.vatIncluded,

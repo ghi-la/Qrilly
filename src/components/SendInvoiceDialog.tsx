@@ -13,6 +13,7 @@ import {
   TextField,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { fetcher, formatDate, formatMoney, send } from '@/lib/client';
 import { fillTemplate } from '@/lib/template';
@@ -39,6 +40,7 @@ export default function SendInvoiceDialog({
   onClose: () => void;
   onSent: () => void;
 }) {
+  const { t } = useTranslation();
   const { data: preset } = useSWR<{ emailSubject: string; emailBody: string }>(
     open ? `/api/presets/${invoice.presetId}` : null,
     fetcher,
@@ -74,7 +76,7 @@ export default function SendInvoiceDialog({
       onSent();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The invoice could not be sent.');
+      setError(err instanceof Error ? err.message : t('sendInvoiceDialog.couldNotBeSent'));
     } finally {
       setBusy(false);
     }
@@ -82,13 +84,13 @@ export default function SendInvoiceDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Email invoice {invoice.number}</DialogTitle>
+      <DialogTitle>{t('sendInvoiceDialog.title', { number: invoice.number })}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
           {error && <Alert severity="error">{error}</Alert>}
-          <Alert severity="info">The PDF is generated fresh and attached to this message.</Alert>
+          <Alert severity="info">{t('sendInvoiceDialog.pdfNotice')}</Alert>
           <TextField
-            label="To"
+            label={t('sendInvoiceDialog.to')}
             type="email"
             value={to}
             onChange={(e) => setTo(e.target.value)}
@@ -96,13 +98,13 @@ export default function SendInvoiceDialog({
             fullWidth
           />
           <TextField
-            label="Subject"
+            label={t('sendInvoiceDialog.subject')}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             fullWidth
           />
           <TextField
-            label="Message"
+            label={t('sendInvoiceDialog.message')}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             multiline
@@ -113,14 +115,14 @@ export default function SendInvoiceDialog({
             control={
               <Switch checked={markAsSent} onChange={(e) => setMarkAsSent(e.target.checked)} />
             }
-            label="Mark the invoice as sent"
+            label={t('sendInvoiceDialog.markAsSent')}
           />
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common.cancel')}</Button>
         <Button variant="contained" onClick={submit} disabled={busy || !to || !subject}>
-          {busy ? 'Sending...' : 'Send'}
+          {busy ? t('sendInvoiceDialog.sending') : t('sendInvoiceDialog.send')}
         </Button>
       </DialogActions>
     </Dialog>

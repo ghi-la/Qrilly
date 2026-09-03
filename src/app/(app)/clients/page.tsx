@@ -5,12 +5,14 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import ClientDialog, { type ClientRecord } from '@/components/ClientDialog';
 import { ConfirmDialog, EmptyState, Loading, PageHeader } from '@/components/ui';
 import { fetcher, send } from '@/lib/client';
 
 export default function ClientsPage() {
+  const { t } = useTranslation();
   const { data, isLoading, mutate } = useSWR<ClientRecord[]>('/api/clients', fetcher);
   const [editing, setEditing] = useState<ClientRecord | null>(null);
   const [open, setOpen] = useState(false);
@@ -26,8 +28,8 @@ export default function ClientsPage() {
   return (
     <>
       <PageHeader
-        title="Clients"
-        subtitle="Names and addresses are encrypted at rest under your account key."
+        title={t('clients.title')}
+        subtitle={t('clients.subtitle')}
         action={
           <Button
             variant="contained"
@@ -37,7 +39,7 @@ export default function ClientsPage() {
               setOpen(true);
             }}
           >
-            New client
+            {t('clients.newClient')}
           </Button>
         }
       />
@@ -46,11 +48,11 @@ export default function ClientsPage() {
         <Loading />
       ) : (data ?? []).length === 0 ? (
         <EmptyState
-          title="No clients saved"
-          description="Save the people you bill regularly and their address fills itself in."
+          title={t('clients.noClientsSavedTitle')}
+          description={t('clients.noClientsSavedDescription')}
           action={
             <Button variant="contained" onClick={() => setOpen(true)}>
-              Add a client
+              {t('clients.addClient')}
             </Button>
           }
         />
@@ -78,11 +80,11 @@ export default function ClientsPage() {
                       setEditing(client);
                       setOpen(true);
                     }}
-                    aria-label="Edit client"
+                    aria-label={t('clients.editClient')}
                   >
                     <EditIcon />
                   </IconButton>
-                  <IconButton onClick={() => setPendingDelete(client)} aria-label="Delete client">
+                  <IconButton onClick={() => setPendingDelete(client)} aria-label={t('clients.deleteClient')}>
                     <DeleteOutlineIcon />
                   </IconButton>
                 </Stack>
@@ -100,8 +102,8 @@ export default function ClientsPage() {
       />
       <ConfirmDialog
         open={Boolean(pendingDelete)}
-        title="Delete this client?"
-        message="Invoices already issued keep their own copy of the address, so they are not affected."
+        title={t('clients.deleteConfirmTitle')}
+        message={t('clients.deleteConfirmMessage')}
         onClose={() => setPendingDelete(null)}
         onConfirm={remove}
       />

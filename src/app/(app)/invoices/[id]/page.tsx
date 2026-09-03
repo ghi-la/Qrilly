@@ -8,6 +8,7 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import InvoiceEditor from '@/components/InvoiceEditor';
 import SendInvoiceDialog from '@/components/SendInvoiceDialog';
@@ -22,6 +23,7 @@ const STATUS_COLOR: Record<string, 'default' | 'primary' | 'success' | 'warning'
 };
 
 export default function InvoicePage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: invoice, mutate, isLoading } = useSWR(`/api/invoices/${id}`, fetcher);
@@ -29,7 +31,14 @@ export default function InvoicePage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (isLoading || !invoice) return <Loading label="Loading invoice..." />;
+  const STATUS_LABEL: Record<string, string> = {
+    draft: t('invoices.statusLabel.draft'),
+    sent: t('invoices.statusLabel.sent'),
+    paid: t('invoices.statusLabel.paid'),
+    canceled: t('invoices.statusLabel.canceled'),
+  };
+
+  if (isLoading || !invoice) return <Loading label={t('invoices.loadingInvoice')} />;
 
   const markPaid = async () => {
     await send(`/api/invoices/${id}`, 'PATCH', { status: 'paid' });
@@ -50,9 +59,14 @@ export default function InvoicePage() {
   return (
     <>
       <PageHeader
-        title={`Invoice ${invoice.number}`}
+        title={t('invoices.invoiceWithNumber', { number: invoice.number })}
         subtitle={invoice.debtor?.name}
-        action={<Chip label={invoice.status} color={STATUS_COLOR[invoice.status] ?? 'default'} />}
+        action={
+          <Chip
+            label={STATUS_LABEL[invoice.status] ?? invoice.status}
+            color={STATUS_COLOR[invoice.status] ?? 'default'}
+          />
+        }
       />
 
       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 3 }}>
@@ -61,7 +75,7 @@ export default function InvoicePage() {
           startIcon={<DownloadIcon />}
           href={`/api/invoices/${id}/pdf`}
         >
-          Download PDF
+          {t('invoices.downloadPdf')}
         </Button>
         <Button
           variant="outlined"
@@ -70,14 +84,14 @@ export default function InvoicePage() {
           target="_blank"
           rel="noopener"
         >
-          Preview
+          {t('invoices.preview')}
         </Button>
         <Button variant="outlined" startIcon={<SendIcon />} onClick={() => setSendOpen(true)}>
-          Email
+          {t('invoices.email')}
         </Button>
         {invoice.status !== 'paid' && (
           <Button variant="outlined" color="success" startIcon={<TaskAltIcon />} onClick={markPaid}>
-            Mark paid
+            {t('invoices.markPaid')}
           </Button>
         )}
         <Button
@@ -86,7 +100,7 @@ export default function InvoicePage() {
           startIcon={<DeleteOutlineIcon />}
           onClick={() => setConfirmOpen(true)}
         >
-          Delete
+          {t('invoices.delete')}
         </Button>
       </Stack>
 
@@ -100,8 +114,8 @@ export default function InvoicePage() {
       />
       <ConfirmDialog
         open={confirmOpen}
-        title="Delete this invoice?"
-        message="The record and everything needed to rebuild its PDF are removed. This cannot be undone."
+        title={t('invoices.deleteConfirmTitle')}
+        message={t('invoices.deleteConfirmMessage')}
         busy={busy}
         onClose={() => setConfirmOpen(false)}
         onConfirm={remove}

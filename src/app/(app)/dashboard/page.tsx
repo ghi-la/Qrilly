@@ -5,6 +5,7 @@ import Grid from '@mui/material/Grid2';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddIcon from '@mui/icons-material/Add';
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import InvoiceCard, { type InvoiceCardData } from '@/components/InvoiceCard';
 import { fetcher, formatMoney } from '@/lib/client';
@@ -18,6 +19,7 @@ interface StatusRow {
 }
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const { data: stats, mutate: mutateStats } = useSWR<{
     byStatus: StatusRow[];
     overdue: StatusRow[];
@@ -48,17 +50,17 @@ export default function DashboardPage() {
   const overdueCount = (stats?.overdue ?? []).reduce((total, row) => total + row.count, 0);
 
   const cards = [
-    { label: 'Outstanding', value: sumOf('sent'), caption: `${countOf('sent')} sent` },
-    { label: 'Overdue', value: overdueTotal, caption: `${overdueCount} past due` },
-    { label: 'Paid', value: sumOf('paid'), caption: `${countOf('paid')} settled` },
-    { label: 'Drafts', value: sumOf('draft'), caption: `${countOf('draft')} in progress` },
+    { label: t('dashboard.outstanding'), value: sumOf('sent'), caption: t('dashboard.sentCaption', { count: countOf('sent') }) },
+    { label: t('dashboard.overdue'), value: overdueTotal, caption: t('dashboard.pastDueCaption', { count: overdueCount }) },
+    { label: t('dashboard.paid'), value: sumOf('paid'), caption: t('dashboard.settledCaption', { count: countOf('paid') }) },
+    { label: t('dashboard.drafts'), value: sumOf('draft'), caption: t('dashboard.inProgressCaption', { count: countOf('draft') }) },
   ];
 
   return (
     <>
       <PageHeader
-        title="Dashboard"
-        subtitle="Where your invoices stand right now."
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.subtitle')}
         action={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button
@@ -67,10 +69,10 @@ export default function DashboardPage() {
               variant="outlined"
               startIcon={<AccessTimeIcon />}
             >
-              Quick work log
+              {t('dashboard.quickWorkLog')}
             </Button>
             <Button component={Link} href="/invoices/new" variant="contained" startIcon={<AddIcon />}>
-              New invoice
+              {t('dashboard.newInvoice')}
             </Button>
           </Stack>
         }
@@ -94,7 +96,7 @@ export default function DashboardPage() {
             </Card>
           </Grid>
         ))}
-        <Grid size={{ xs: 6, md: 3 }}>
+        <Grid size={12}>
           <Card
             component={Link}
             href="/entries"
@@ -102,15 +104,15 @@ export default function DashboardPage() {
           >
             <CardContent>
               <Typography variant="overline" color="text.secondary">
-                Unbilled work
+                {t('dashboard.unbilledWork')}
               </Typography>
               <Typography variant="h5" sx={{ mt: 0.5 }}>
                 {stats?.unbilledEntries.count ?? 0}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {stats?.unbilledEntries.clientCount
-                  ? `${stats.unbilledEntries.clientCount} client${stats.unbilledEntries.clientCount === 1 ? '' : 's'} waiting`
-                  : 'entries logged'}
+                  ? t('dashboard.clientsWaiting', { count: stats.unbilledEntries.clientCount })
+                  : t('dashboard.entriesLogged')}
               </Typography>
             </CardContent>
           </Card>
@@ -118,18 +120,18 @@ export default function DashboardPage() {
       </Grid>
 
       <Typography variant="h6" gutterBottom>
-        Recent invoices
+        {t('dashboard.recentInvoices')}
       </Typography>
 
       {isLoading ? (
         <Loading />
       ) : (invoices ?? []).length === 0 ? (
         <EmptyState
-          title="No invoices yet"
-          description="Create your first Swiss QR bill - it takes a preset and a client."
+          title={t('dashboard.noInvoicesYet')}
+          description={t('dashboard.noInvoicesDescription')}
           action={
             <Button component={Link} href="/invoices/new" variant="contained">
-              New invoice
+              {t('dashboard.newInvoice')}
             </Button>
           }
         />

@@ -19,18 +19,13 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 type Mode = 'login' | 'register';
 
-const MESSAGES: Record<string, string> = {
-  'email-not-verified': 'Confirm your email address first - check your inbox for the link.',
-  'too-many-attempts': 'Too many attempts from here. Wait a few minutes and try again.',
-};
-
-const REGISTERED_NOTICE =
-  'Account created. Check your inbox for the confirmation link, then sign in below.';
-
 export default function AuthForm({ mode }: { mode: Mode }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [name, setName] = useState('');
@@ -39,11 +34,16 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(
-    mode === 'login' && searchParams.get('registered') ? REGISTERED_NOTICE : null,
+    mode === 'login' && searchParams.get('registered') ? t('auth.registeredNotice') : null,
   );
   const [busy, setBusy] = useState(false);
 
   const isRegister = mode === 'register';
+
+  const MESSAGES: Record<string, string> = {
+    'email-not-verified': t('auth.emailNotVerified'),
+    'too-many-attempts': t('auth.tooManyAttempts'),
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -59,7 +59,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
           body: JSON.stringify({ name, email, password }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error ?? 'Registration failed.');
+        if (!res.ok) throw new Error(data.error ?? t('auth.registrationFailed'));
         router.push('/login?registered=1');
         return;
       }
@@ -72,14 +72,14 @@ export default function AuthForm({ mode }: { mode: Mode }) {
       });
 
       if (result?.error) {
-        setError(MESSAGES[result.code ?? ''] ?? 'That email and password combination is not right.');
+        setError(MESSAGES[result.code ?? ''] ?? t('auth.invalidCredentials'));
         return;
       }
 
       router.push('/dashboard');
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+      setError(err instanceof Error ? err.message : t('auth.somethingWentWrong'));
     } finally {
       setBusy(false);
     }
@@ -87,15 +87,16 @@ export default function AuthForm({ mode }: { mode: Mode }) {
 
   return (
     <Container maxWidth="xs" sx={{ py: { xs: 6, md: 10 } }}>
+      <Stack direction="row" justifyContent="flex-end">
+        <LanguageSwitcher />
+      </Stack>
       <Box sx={{ mb: 4, textAlign: 'center' }}>
         <Image src="/logo.png" alt="Qrilly" width={48} height={48} priority />
         <Typography variant="h4" sx={{ mt: 1 }}>
-          {isRegister ? 'Create your account' : 'Welcome back'}
+          {isRegister ? t('auth.registerTitle') : t('auth.loginTitle')}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {isRegister
-            ? 'One account holds your presets, clients and invoices.'
-            : 'Sign in to pick up where you left off.'}
+          {isRegister ? t('auth.registerSubtitle') : t('auth.loginSubtitle')}
         </Typography>
       </Box>
 
@@ -108,7 +109,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
 
               {isRegister && (
                 <TextField
-                  label="Name"
+                  label={t('auth.name')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
@@ -117,7 +118,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
               )}
 
               <TextField
-                label="Email"
+                label={t('auth.email')}
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -126,12 +127,12 @@ export default function AuthForm({ mode }: { mode: Mode }) {
                 fullWidth
               />
               <TextField
-                label="Password"
+                label={t('auth.password')}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={isRegister ? 'new-password' : 'current-password'}
-                helperText={isRegister ? 'At least 8 characters.' : undefined}
+                helperText={isRegister ? t('auth.passwordHelper') : undefined}
                 required
                 fullWidth
               />
@@ -145,27 +146,27 @@ export default function AuthForm({ mode }: { mode: Mode }) {
                       size="small"
                     />
                   }
-                  label="Keep me signed in for 7 days"
+                  label={t('auth.rememberMe')}
                 />
               )}
 
               <Button type="submit" variant="contained" size="large" disabled={busy}>
-                {busy ? 'Working...' : isRegister ? 'Create account' : 'Sign in'}
+                {busy ? t('auth.working') : isRegister ? t('auth.createAccount') : t('auth.signIn')}
               </Button>
 
               <Typography variant="body2" color="text.secondary" textAlign="center">
                 {isRegister ? (
                   <>
-                    Already have an account?{' '}
+                    {t('auth.alreadyHaveAccount')}{' '}
                     <MuiLink component={Link} href="/login">
-                      Sign in
+                      {t('auth.signIn')}
                     </MuiLink>
                   </>
                 ) : (
                   <>
-                    No account yet?{' '}
+                    {t('auth.noAccountYet')}{' '}
                     <MuiLink component={Link} href="/register">
-                      Create one
+                      {t('auth.createOne')}
                     </MuiLink>
                   </>
                 )}

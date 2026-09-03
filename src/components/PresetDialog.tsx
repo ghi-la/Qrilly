@@ -25,8 +25,10 @@ import Grid from '@mui/material/Grid2';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { digitsOnly, fetcher, houseNumberChars, ibanChars, send, withoutDigits } from '@/lib/client';
+import { isSupportedLanguage, type SupportedLanguage } from '@/lib/i18n';
 import { DecimalField } from './ui';
 import {
   CURRENCIES,
@@ -110,6 +112,20 @@ export const blankPreset = (): PresetRecord => ({
   lineGroups: [],
 });
 
+// Actual message text sent to clients, so it follows the account's language
+// like the rest of the preset's bill content - not routed through i18next,
+// since these strings' {{placeholders}} must stay literal for fillTemplate().
+const DEFAULT_EMAIL_TEMPLATE: Record<SupportedLanguage, { subject: string; body: string }> = {
+  en: {
+    subject: 'Invoice {{number}} from {{creditor}}',
+    body: 'Dear {{client}},\n\nPlease find invoice {{number}} attached, for {{total}}, due on {{dueDate}}.\n\nKind regards,\n{{creditor}}',
+  },
+  it: {
+    subject: 'Fattura {{number}} da {{creditor}}',
+    body: 'Gentile {{client}},\n\nIn allegato la fattura {{number}}, per un importo di {{total}}, con scadenza {{dueDate}}.\n\nCordiali saluti,\n{{creditor}}',
+  },
+};
+
 export default function PresetDialog({
   open,
   preset,
@@ -121,6 +137,7 @@ export default function PresetDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('md'));
   const [form, setForm] = useState<PresetRecord>(blankPreset);
@@ -132,10 +149,17 @@ export default function PresetDialog({
 
   useEffect(() => {
     if (open) {
+      const templateLang = settings?.language?.toLowerCase() ?? 'en';
+      const template = DEFAULT_EMAIL_TEMPLATE[isSupportedLanguage(templateLang) ? templateLang : 'en'];
       setForm(
         preset
           ? { ...blankPreset(), ...preset }
-          : { ...blankPreset(), qrLanguage: settings?.language ?? 'EN' },
+          : {
+              ...blankPreset(),
+              qrLanguage: settings?.language ?? 'EN',
+              emailSubject: template.subject,
+              emailBody: template.body,
+            },
       );
       setError(null);
     }
@@ -205,7 +229,7 @@ export default function PresetDialog({
     const res = await fetch('/api/files', { method: 'POST', body });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(data.error ?? 'The logo could not be uploaded.');
+      setError(data.error ?? t('presetDialog.logoUploadFailed'));
       return;
     }
     update({ logoFileId: data._id });
@@ -226,7 +250,7 @@ export default function PresetDialog({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The preset could not be saved.');
+      setError(err instanceof Error ? err.message : t('presetDialog.couldNotBeSaved'));
     } finally {
       setBusy(false);
     }
@@ -234,7 +258,7 @@ export default function PresetDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" fullScreen={fullScreen}>
-      <DialogTitle>{preset?._id ? 'Edit preset' : 'New preset'}</DialogTitle>
+      <DialogTitle>{preset?._id ? t('presetDialog.editTitle') : t('presetDialog.newTitle')}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={3}>
           {error && <Alert severity="error">{error}</Alert>}
@@ -242,10 +266,10 @@ export default function PresetDialog({
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 8 }}>
               <TextField
-                label="Preset name"
+                label={t('presetDialog.presetName')}
                 value={form.name}
                 onChange={(e) => update({ name: e.target.value })}
-                helperText="Only you see this - e.g. 'Studio GmbH' or 'Freelance'."
+                helperText={t('presetDialog.presetNameHelper')}
                 required
                 fullWidth
               />
@@ -258,7 +282,7 @@ export default function PresetDialog({
                     onChange={(e) => update({ isDefault: e.target.checked })}
                   />
                 }
-                label="Use by default"
+                label={t('presetDialog.useByDefault')}
               />
             </Grid>
 
@@ -273,7 +297,7 @@ export default function PresetDialog({
                 </Avatar>
                 <Box>
                   <Button component="label" size="small" variant="outlined">
-                    Upload logo
+                    {t('presetDialog.uploadLogo')}
                     <input
                       hidden
                       type="file"
@@ -286,11 +310,11 @@ export default function PresetDialog({
                   </Button>
                   {form.logoFileId && (
                     <Button size="small" onClick={() => update({ logoFileId: null })} sx={{ ml: 1 }}>
-                      Remove
+                      {t('presetDialog.removeLogo')}
                     </Button>
                   )}
                   <Typography variant="caption" display="block" color="text.secondary">
-                    PNG, JPEG or WebP, up to 600 KB.
+                    {t('presetDialog.logoHint')}
                   </Typography>
                 </Box>
               </Stack>
@@ -298,13 +322,13 @@ export default function PresetDialog({
           </Grid>
 
           <Divider textAlign="left">
-            <Typography variant="overline">Creditor</Typography>
+            <Typography variant="overline">{t('presetDialog.creditorSection')}</Typography>
           </Divider>
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
-                label="Business or person"
+                label={t('presetDialog.businessOrPerson')}
                 value={form.creditor.name}
                 onChange={(e) =>
                   update({ creditor: { ...form.creditor, name: e.target.value } })
@@ -315,17 +339,17 @@ export default function PresetDialog({
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
-                label="Email"
+                label={t('presetDialog.email')}
                 type="email"
                 value={form.creditor.email}
                 onChange={(e) => update({ creditor: { ...form.creditor, email: e.target.value } })}
-                helperText="Used as the reply-to address on sent invoices."
+                helperText={t('presetDialog.emailHelper')}
                 fullWidth
               />
             </Grid>
             <Grid size={{ xs: 8, md: 5 }}>
               <TextField
-                label="Street"
+                label={t('presetDialog.street')}
                 value={form.creditor.address.street}
                 onChange={(e) => updateAddress({ street: e.target.value })}
                 fullWidth
@@ -333,7 +357,7 @@ export default function PresetDialog({
             </Grid>
             <Grid size={{ xs: 4, md: 2 }}>
               <TextField
-                label="No."
+                label={t('presetDialog.buildingNumber')}
                 value={form.creditor.address.buildingNumber}
                 onChange={(e) => updateAddress({ buildingNumber: houseNumberChars(e.target.value) })}
                 fullWidth
@@ -341,7 +365,7 @@ export default function PresetDialog({
             </Grid>
             <Grid size={{ xs: 4, md: 2 }}>
               <TextField
-                label="ZIP"
+                label={t('presetDialog.zip')}
                 value={form.creditor.address.zip}
                 onChange={(e) => updateAddress({ zip: digitsOnly(e.target.value, 4) })}
                 slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 4 } }}
@@ -350,7 +374,7 @@ export default function PresetDialog({
             </Grid>
             <Grid size={{ xs: 8, md: 3 }}>
               <TextField
-                label="City"
+                label={t('presetDialog.city')}
                 value={form.creditor.address.city}
                 onChange={(e) => updateAddress({ city: withoutDigits(e.target.value) })}
                 fullWidth
@@ -358,16 +382,18 @@ export default function PresetDialog({
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
-                label="IBAN or QR-IBAN"
+                label={t('presetDialog.ibanLabel')}
                 value={form.iban}
                 onChange={(e) => updateIban(ibanChars(e.target.value))}
                 error={!ibanValid}
                 helperText={
                   !ibanValid
-                    ? 'That is not a valid Swiss or Liechtenstein IBAN.'
+                    ? t('presetDialog.ibanInvalid')
                     : form.iban
-                      ? `${formatIban(form.iban)}${qrIban ? ' - QR-IBAN, QRR reference required' : ''}`
-                      : 'CH or LI account the money is paid into.'
+                      ? qrIban
+                        ? t('presetDialog.ibanHintQr', { iban: formatIban(form.iban) })
+                        : formatIban(form.iban)
+                      : t('presetDialog.ibanHintDefault')
                 }
                 required
                 fullWidth
@@ -375,7 +401,7 @@ export default function PresetDialog({
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
-                label="VAT number"
+                label={t('presetDialog.vatNumber')}
                 value={form.vatNumber}
                 onChange={(e) => update({ vatNumber: e.target.value })}
                 placeholder="CHE-123.456.789 MWST"
@@ -385,41 +411,41 @@ export default function PresetDialog({
           </Grid>
 
           <Divider textAlign="left">
-            <Typography variant="overline">Invoice defaults</Typography>
+            <Typography variant="overline">{t('presetDialog.invoiceDefaultsSection')}</Typography>
           </Divider>
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 6, md: 3 }}>
               <TextField
                 select
-                label="Reference type"
+                label={t('presetDialog.referenceType')}
                 value={form.referenceType}
                 onChange={(e) => update({ referenceType: e.target.value as PresetRecord['referenceType'] })}
                 disabled={qrIban}
                 helperText={
                   qrIban
-                    ? 'This account uses a QR-IBAN, so QRR is required.'
+                    ? t('presetDialog.referenceTypeHintQrIban')
                     : !ibanValid || !form.iban
                       ? undefined
-                      : 'QRR needs a QR-IBAN (institution id 30000-31999); use SCOR or none here.'
+                      : t('presetDialog.referenceTypeHintOther')
                 }
                 fullWidth
               >
                 <MenuItem value="QRR" disabled={!qrIban}>
-                  QRR
+                  {t('presetDialog.referenceQrr')}
                 </MenuItem>
                 <MenuItem value="SCOR" disabled={qrIban}>
-                  SCOR
+                  {t('presetDialog.referenceScor')}
                 </MenuItem>
                 <MenuItem value="NON" disabled={qrIban}>
-                  None
+                  {t('presetDialog.referenceNone')}
                 </MenuItem>
               </TextField>
             </Grid>
             <Grid size={{ xs: 6, md: 3 }}>
               <TextField
                 select
-                label="Currency"
+                label={t('presetDialog.currency')}
                 value={form.currency}
                 onChange={(e) => update({ currency: e.target.value as 'CHF' | 'EUR' })}
                 fullWidth
@@ -434,10 +460,10 @@ export default function PresetDialog({
             <Grid size={{ xs: 6, md: 3 }}>
               <TextField
                 select
-                label="Language"
+                label={t('presetDialog.language')}
                 value={form.qrLanguage}
                 onChange={(e) => update({ qrLanguage: e.target.value as PresetRecord['qrLanguage'] })}
-                helperText="Used for this account's bills and its QR slip."
+                helperText={t('presetDialog.languageHelper')}
                 fullWidth
               >
                 {QR_LANGUAGES.map((language) => (
@@ -450,7 +476,7 @@ export default function PresetDialog({
             <Grid size={{ xs: 6, md: 3 }}>
               <TextField
                 select
-                label="Default VAT"
+                label={t('presetDialog.defaultVat')}
                 value={form.defaultVatRate}
                 onChange={(e) => update({ defaultVatRate: Number(e.target.value) })}
                 fullWidth
@@ -465,16 +491,18 @@ export default function PresetDialog({
 
             <Grid size={{ xs: 6, md: 4 }}>
               <TextField
-                label="Number prefix"
+                label={t('presetDialog.numberPrefix')}
                 value={form.invoicePrefix}
                 onChange={(e) => update({ invoicePrefix: e.target.value })}
-                helperText={`Next: ${form.invoicePrefix}${String(form.nextNumber).padStart(4, '0')}`}
+                helperText={t('presetDialog.numberPrefixHelper', {
+                  next: `${form.invoicePrefix}${String(form.nextNumber).padStart(4, '0')}`,
+                })}
                 fullWidth
               />
             </Grid>
             <Grid size={{ xs: 6, md: 4 }}>
               <TextField
-                label="Next number"
+                label={t('presetDialog.nextNumber')}
                 type="number"
                 value={form.nextNumber}
                 onChange={(e) => update({ nextNumber: Number(e.target.value) })}
@@ -483,7 +511,7 @@ export default function PresetDialog({
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
-                label="Payment term (days)"
+                label={t('presetDialog.paymentTermDays')}
                 type="number"
                 value={form.paymentTermDays}
                 onChange={(e) => update({ paymentTermDays: Number(e.target.value) })}
@@ -499,7 +527,7 @@ export default function PresetDialog({
                     onChange={(e) => update({ vatIncluded: e.target.checked })}
                   />
                 }
-                label="Prices include VAT"
+                label={t('presetDialog.pricesIncludeVat')}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -510,33 +538,30 @@ export default function PresetDialog({
                     onChange={(e) => update({ roundTo5Cents: e.target.checked })}
                   />
                 }
-                label="Round totals to 0.05"
+                label={t('presetDialog.roundTotals')}
               />
             </Grid>
 
             <Grid size={12}>
               <TextField
-                label="Footer note"
+                label={t('presetDialog.footerNote')}
                 value={form.footerNote}
                 onChange={(e) => update({ footerNote: e.target.value })}
                 multiline
                 minRows={2}
-                helperText="Printed at the bottom of every invoice from this preset."
+                helperText={t('presetDialog.footerNoteHelper')}
                 fullWidth
               />
             </Grid>
           </Grid>
 
           <Divider textAlign="left">
-            <Typography variant="overline">Line item groups</Typography>
+            <Typography variant="overline">{t('presetDialog.lineItemGroupsSection')}</Typography>
           </Divider>
 
           <Stack spacing={1.5}>
             <Typography variant="body2" color="text.secondary">
-              Every invoice from this preset starts with one line-item group per entry below, each
-              with its own unit, price and VAT rate already set - so all that's left is a
-              description and a quantity. An &quot;Extra&quot; group (just a description and an
-              amount, no VAT) is always offered too, for anything that doesn&apos;t fit.
+              {t('presetDialog.lineItemGroupsIntro')}
             </Typography>
 
             <Stack spacing={1.5}>
@@ -545,8 +570,8 @@ export default function PresetDialog({
                   <Grid container spacing={1.5} alignItems="center">
                     <Grid size={{ xs: 12, sm: 5 }}>
                       <TextField
-                        label="Group name"
-                        placeholder="e.g. Consulting"
+                        label={t('presetDialog.groupName')}
+                        placeholder={t('presetDialog.groupNamePlaceholder')}
                         value={group.name}
                         onChange={(e) => updateLineGroup(index, { name: e.target.value })}
                         fullWidth
@@ -555,7 +580,7 @@ export default function PresetDialog({
                     <Grid size={{ xs: 4, sm: 2 }}>
                       <TextField
                         select
-                        label="Unit"
+                        label={t('presetDialog.unit')}
                         value={group.unit}
                         onChange={(e) => updateLineGroup(index, { unit: e.target.value })}
                         fullWidth
@@ -571,7 +596,7 @@ export default function PresetDialog({
                     </Grid>
                     <Grid size={{ xs: 4, sm: 2 }}>
                       <DecimalField
-                        label="Unit price"
+                        label={t('presetDialog.unitPrice')}
                         value={group.unitPrice}
                         onChange={(value) => updateLineGroup(index, { unitPrice: value })}
                         fullWidth
@@ -580,7 +605,7 @@ export default function PresetDialog({
                     <Grid size={{ xs: 3, sm: 2 }}>
                       <TextField
                         select
-                        label="VAT"
+                        label={t('presetDialog.vat')}
                         value={group.vatRate}
                         onChange={(e) => updateLineGroup(index, { vatRate: Number(e.target.value) })}
                         fullWidth
@@ -595,7 +620,7 @@ export default function PresetDialog({
                       </TextField>
                     </Grid>
                     <Grid size={{ xs: 1 }} sx={{ textAlign: 'right' }}>
-                      <IconButton onClick={() => removeLineGroup(index)} aria-label="Remove group">
+                      <IconButton onClick={() => removeLineGroup(index)} aria-label={t('invoiceEditor.removeGroup')}>
                         <DeleteOutlineIcon />
                       </IconButton>
                     </Grid>
@@ -610,35 +635,35 @@ export default function PresetDialog({
               onClick={addLineGroup}
               sx={{ alignSelf: 'flex-start' }}
             >
-              Add group
+              {t('presetDialog.addGroup')}
             </Button>
           </Stack>
 
           <Divider textAlign="left">
-            <Typography variant="overline">Email template</Typography>
+            <Typography variant="overline">{t('presetDialog.emailTemplateSection')}</Typography>
           </Divider>
 
           <Stack spacing={2}>
             <TextField
-              label="Subject"
+              label={t('presetDialog.subject')}
               value={form.emailSubject}
               onChange={(e) => update({ emailSubject: e.target.value })}
               fullWidth
             />
             <TextField
-              label="Body"
+              label={t('presetDialog.body')}
               value={form.emailBody}
               onChange={(e) => update({ emailBody: e.target.value })}
               multiline
               minRows={4}
-              helperText="Placeholders: {{number}}, {{client}}, {{creditor}}, {{total}}, {{dueDate}}"
+              helperText={t('presetDialog.bodyHelper')}
               fullWidth
             />
           </Stack>
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common.cancel')}</Button>
         <Button
           variant="contained"
           onClick={save}
@@ -651,7 +676,7 @@ export default function PresetDialog({
             form.lineGroups.some((group) => !group.name.trim())
           }
         >
-          {busy ? 'Saving...' : 'Save preset'}
+          {busy ? t('common.saving') : t('presetDialog.save')}
         </Button>
       </DialogActions>
     </Dialog>

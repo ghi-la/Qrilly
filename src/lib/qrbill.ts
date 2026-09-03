@@ -121,29 +121,36 @@ export function formatReference(reference: string, type: ReferenceType): string 
   return (ref.slice(0, head) + ' ' + ref.slice(head).replace(/(.{5})/g, '$1 ')).trim();
 }
 
+/** Machine-readable reasons a reference can't be derived - see deriveReference. */
+export type ReferenceErrorCode = 'qrIbanRequired' | 'qrrOnQrIban' | 'referenceKeyRequired';
+
 /**
  * Derives the reference an invoice should carry. QRR accounts must have one,
  * ordinary IBANs may use SCOR or none at all - which is the same constraint
  * the payment rails enforce, so it is checked here rather than at print time.
+ *
+ * Returns an error *code* rather than a message, since this pure function has
+ * no language context - callers (the API route, the live editor preview)
+ * translate it themselves.
  */
 export function deriveReference(
   type: ReferenceType,
   iban: string,
   seed: string,
-): { reference: string; error?: string } {
+): { reference: string; errorCode?: ReferenceErrorCode } {
   const qrIban = isQrIban(iban);
   if (type === 'QRR') {
     if (!qrIban) {
-      return { reference: '', error: 'A QRR reference requires a QR-IBAN (institution id 30000-31999).' };
+      return { reference: '', errorCode: 'qrIbanRequired' };
     }
     return { reference: buildQrReference(seed) };
   }
   if (qrIban) {
-    return { reference: '', error: 'QR-IBAN accounts must use a QRR reference.' };
+    return { reference: '', errorCode: 'qrrOnQrIban' };
   }
   if (type === 'SCOR') {
     const reference = buildScorReference(seed);
-    if (!reference) return { reference: '', error: 'Enter a reference key for the SCOR reference.' };
+    if (!reference) return { reference: '', errorCode: 'referenceKeyRequired' };
     return { reference };
   }
   return { reference: '' };

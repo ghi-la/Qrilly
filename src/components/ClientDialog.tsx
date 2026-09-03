@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { digitsOnly, houseNumberChars, send, withoutDigits } from '@/lib/client';
 
 export interface ClientRecord {
@@ -46,6 +47,7 @@ export default function ClientDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<ClientRecord>(blankClient);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -71,7 +73,7 @@ export default function ClientDialog({
       onSaved();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The client could not be saved.');
+      setError(err instanceof Error ? err.message : t('clientDialog.couldNotBeSaved'));
     } finally {
       setBusy(false);
     }
@@ -79,14 +81,14 @@ export default function ClientDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{client?._id ? 'Edit client' : 'New client'}</DialogTitle>
+      <DialogTitle>{client?._id ? t('clientDialog.editTitle') : t('clientDialog.newTitle')}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
           {error && <Alert severity="error">{error}</Alert>}
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 7 }}>
               <TextField
-                label="Name"
+                label={t('clientDialog.name')}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
@@ -95,7 +97,7 @@ export default function ClientDialog({
             </Grid>
             <Grid size={{ xs: 12, sm: 5 }}>
               <TextField
-                label="Email"
+                label={t('clientDialog.email')}
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -104,7 +106,7 @@ export default function ClientDialog({
             </Grid>
             <Grid size={{ xs: 8 }}>
               <TextField
-                label="Street"
+                label={t('clientDialog.street')}
                 value={form.address.street}
                 onChange={(e) => updateAddress({ street: e.target.value })}
                 fullWidth
@@ -112,7 +114,7 @@ export default function ClientDialog({
             </Grid>
             <Grid size={{ xs: 4 }}>
               <TextField
-                label="No."
+                label={t('clientDialog.buildingNumber')}
                 value={form.address.buildingNumber}
                 onChange={(e) => updateAddress({ buildingNumber: houseNumberChars(e.target.value) })}
                 fullWidth
@@ -120,7 +122,7 @@ export default function ClientDialog({
             </Grid>
             <Grid size={{ xs: 4 }}>
               <TextField
-                label="ZIP"
+                label={t('clientDialog.zip')}
                 value={form.address.zip}
                 onChange={(e) => updateAddress({ zip: digitsOnly(e.target.value, 4) })}
                 slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 4 } }}
@@ -129,7 +131,7 @@ export default function ClientDialog({
             </Grid>
             <Grid size={{ xs: 8 }}>
               <TextField
-                label="City"
+                label={t('clientDialog.city')}
                 value={form.address.city}
                 onChange={(e) => updateAddress({ city: withoutDigits(e.target.value) })}
                 fullWidth
@@ -137,7 +139,7 @@ export default function ClientDialog({
             </Grid>
             <Grid size={12}>
               <TextField
-                label="Notes"
+                label={t('clientDialog.notes')}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 multiline
@@ -149,9 +151,9 @@ export default function ClientDialog({
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common.cancel')}</Button>
         <Button variant="contained" onClick={save} disabled={busy || !form.name}>
-          {busy ? 'Saving...' : 'Save client'}
+          {busy ? t('common.saving') : t('clientDialog.save')}
         </Button>
       </DialogActions>
     </Dialog>

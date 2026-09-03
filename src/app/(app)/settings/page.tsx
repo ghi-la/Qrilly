@@ -3,8 +3,10 @@
 import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { fetcher, send } from '@/lib/client';
+import { isSupportedLanguage, switchLanguage } from '@/lib/i18n';
 import { QR_LANGUAGES, type QrLanguage } from '@/lib/qrbill';
 import { ErrorNote, Loading, PageHeader } from '@/components/ui';
 
@@ -16,6 +18,7 @@ const LANGUAGE_NAMES: Record<QrLanguage, string> = {
 };
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { data, isLoading, mutate } = useSWR<{ language: QrLanguage }>('/api/settings', fetcher);
   const [language, setLanguage] = useState<QrLanguage>('EN');
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +36,11 @@ export default function SettingsPage() {
     try {
       await send('/api/settings', 'PATCH', { language });
       void mutate();
+      const uiLang = language.toLowerCase();
+      if (isSupportedLanguage(uiLang)) switchLanguage(uiLang);
       setSaved(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The settings could not be saved.');
+      setError(err instanceof Error ? err.message : t('settings.couldNotBeSaved'));
     } finally {
       setBusy(false);
     }
@@ -43,7 +48,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" subtitle="Preferences for your account." />
+      <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
 
       <ErrorNote error={error} />
 
@@ -53,17 +58,16 @@ export default function SettingsPage() {
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Language
+              {t('settings.languageHeading')}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              The application's default language. New presets start in this language, and it is
-              what any preset's bills are written in unless the preset says otherwise.
+              {t('settings.languageDescription')}
             </Typography>
             <Grid container spacing={2} alignItems="center">
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   select
-                  label="Language"
+                  label={t('settings.languageLabel')}
                   value={language}
                   onChange={(e) => {
                     setLanguage(e.target.value as QrLanguage);
@@ -81,11 +85,11 @@ export default function SettingsPage() {
             </Grid>
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 3 }}>
               <Button variant="contained" onClick={save} disabled={busy}>
-                {busy ? 'Saving...' : 'Save'}
+                {busy ? t('settings.saving') : t('settings.save')}
               </Button>
               {saved && (
                 <Typography variant="body2" color="success.main">
-                  Saved.
+                  {t('settings.saved')}
                 </Typography>
               )}
             </Stack>

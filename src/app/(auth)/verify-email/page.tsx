@@ -13,8 +13,10 @@ import {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 function VerifyEmail() {
+  const { t } = useTranslation();
   const token = useSearchParams().get('token');
   const [state, setState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [message, setMessage] = useState('');
@@ -36,13 +38,14 @@ function VerifyEmail() {
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error ?? 'That link could not be used.');
+        if (!res.ok) throw new Error(data.error ?? t('verifyEmail.linkFailed'));
         setState('done');
       })
       .catch((err: Error) => {
         setMessage(err.message);
         setState('failed');
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const resend = async () => {
@@ -59,14 +62,14 @@ function VerifyEmail() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h5">Confirm your email</Typography>
+            <Typography variant="h5">{t('verifyEmail.title')}</Typography>
 
-            {state === 'working' && <Typography variant="body2">Checking your link...</Typography>}
+            {state === 'working' && <Typography variant="body2">{t('verifyEmail.checking')}</Typography>}
             {state === 'done' && (
               <>
-                <Alert severity="success">Your email is confirmed. You can sign in now.</Alert>
+                <Alert severity="success">{t('verifyEmail.confirmed')}</Alert>
                 <Button component={Link} href="/login" variant="contained">
-                  Go to sign in
+                  {t('verifyEmail.goToSignIn')}
                 </Button>
               </>
             )}
@@ -75,22 +78,18 @@ function VerifyEmail() {
               <>
                 {state === 'failed' && <Alert severity="error">{message}</Alert>}
                 <Typography variant="body2" color="text.secondary">
-                  Enter your address and we&apos;ll send a fresh confirmation link.
+                  {t('verifyEmail.enterAddress')}
                 </Typography>
-                {resent && (
-                  <Alert severity="info">
-                    If that address needs confirming, a new link is on its way.
-                  </Alert>
-                )}
+                {resent && <Alert severity="info">{t('verifyEmail.resendNotice')}</Alert>}
                 <TextField
-                  label="Email"
+                  label={t('auth.email')}
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   fullWidth
                 />
                 <Button variant="outlined" onClick={resend} disabled={!email}>
-                  Send a new link
+                  {t('verifyEmail.resend')}
                 </Button>
               </>
             )}

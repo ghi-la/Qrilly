@@ -29,6 +29,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type FocusEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import {
   addDays,
@@ -166,12 +167,6 @@ const blankForm = (): FormState => ({
   notes: '',
 });
 
-const REFERENCE_LABEL: Record<ReferenceType, string> = {
-  QRR: 'QRR reference',
-  SCOR: 'SCOR reference',
-  NON: 'no reference',
-};
-
 // Mirrors the two-line "street / zip city" address block printed on the PDF,
 // so the client card can preview it exactly as it will appear on the bill.
 function addressLines(address: FormState['debtor']['address']): string[] {
@@ -268,16 +263,18 @@ function Step({
 }
 
 function ContinueButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  const { t } = useTranslation();
   return (
     <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}>
       <Button variant="outlined" onClick={onClick} disabled={disabled}>
-        Continue
+        {t('common.continue')}
       </Button>
     </Stack>
   );
 }
 
 export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
   // A batch of logged work entries handed off from the entries page, all
@@ -294,6 +291,18 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
     !invoiceId && fromEntriesIds ? `/api/entries?ids=${fromEntriesIds}` : null,
     fetcher,
   );
+
+  const REFERENCE_LABEL: Record<ReferenceType, string> = {
+    QRR: t('invoiceEditor.referenceLabel.QRR'),
+    SCOR: t('invoiceEditor.referenceLabel.SCOR'),
+    NON: t('invoiceEditor.referenceLabel.NON'),
+  };
+
+  const REFERENCE_ERROR_MESSAGE: Record<string, string> = {
+    qrIbanRequired: t('invoiceEditor.referenceErrors.qrIbanRequired'),
+    qrrOnQrIban: t('invoiceEditor.referenceErrors.qrrOnQrIban'),
+    referenceKeyRequired: t('invoiceEditor.referenceErrors.referenceKeyRequired'),
+  };
 
   const [form, setForm] = useState<FormState>(blankForm);
   const [ready, setReady] = useState(false);
@@ -328,7 +337,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
     if (fromEntriesIds) {
       if (!presets || !clients || !sourceEntries) return;
       if (sourceEntries.length === 0) {
-        setError('Those entries could not be found.');
+        setError(t('invoiceEditor.entriesNotFound'));
         setReady(true);
         return;
       }
@@ -337,13 +346,13 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
         (e) => e.presetId === first.presetId && e.clientId === first.clientId,
       );
       if (!sameBatch) {
-        setError('Selected entries must all share the same preset and client.');
+        setError(t('invoiceEditor.entriesMismatch'));
         setReady(true);
         return;
       }
       const preset = presets.find((p) => p._id === first.presetId);
       if (!preset) {
-        setError('That preset no longer exists.');
+        setError(t('invoiceEditor.presetGone'));
         setReady(true);
         return;
       }
@@ -376,6 +385,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
     const preset = presets.find((p) => p.isDefault) ?? presets[0];
     if (preset) applyPreset(preset, true);
     setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoice, invoiceId, presets, clients, sourceEntries, fromEntriesIds, ready]);
 
   // Once loaded, open the first step that still needs the user's attention.
@@ -435,15 +445,18 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
   // The reference is derived from the same helper the server uses, so an
   // invalid combination surfaces while typing rather than on save.
   const referencePreview = useMemo(() => {
-    if (!activePreset) return { reference: '', error: undefined as string | undefined };
+    if (!activePreset) return { reference: '', errorCode: undefined as string | undefined };
     const seed = form.referenceKey || form.number.replace(/\D/g, '') || '0';
     return deriveReference(form.referenceType, activePreset.iban, seed);
   }, [activePreset, form.referenceType, form.referenceKey, form.number]);
+  const referenceError = referencePreview.errorCode
+    ? REFERENCE_ERROR_MESSAGE[referencePreview.errorCode]
+    : undefined;
 
   // Surface the collapsed settings automatically if something in there needs attention.
   useEffect(() => {
-    if (referencePreview.error) setActiveSection('settings');
-  }, [referencePreview.error]);
+    if (referenceError) setActiveSection('settings');
+  }, [referenceError]);
 
   const settingsSummary = useMemo(() => {
     const parts = [
@@ -451,12 +464,13 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       form.currency,
       form.qrLanguage,
       REFERENCE_LABEL[form.referenceType],
-      form.vatIncluded ? 'VAT incl.' : 'VAT excl.',
+      form.vatIncluded ? t('invoiceEditor.vatIncludedSummary') : t('invoiceEditor.vatExcludedSummary'),
     ];
-    if (form.discountPercent) parts.push(`${form.discountPercent}% discount`);
-    if (form.roundTo5Cents) parts.push('rounded to 0.05');
+    if (form.discountPercent) parts.push(t('invoiceEditor.discountSummary', { percent: form.discountPercent }));
+    if (form.roundTo5Cents) parts.push(t('invoiceEditor.roundedSummary'));
     return parts.filter(Boolean).join(' · ');
-  }, [activePreset, form.currency, form.qrLanguage, form.referenceType, form.vatIncluded, form.discountPercent, form.roundTo5Cents]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePreset, form.currency, form.qrLanguage, form.referenceType, form.vatIncluded, form.discountPercent, form.roundTo5Cents, t]);
 
   const debtorAddressLines = useMemo(
     () => addressLines(form.debtor.address),
@@ -464,30 +478,43 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
   );
 
   const clientSummary = useMemo(() => {
-    if (!form.debtor.name) return 'No client selected yet';
+    if (!form.debtor.name) return t('invoiceEditor.noClientSelected');
     const cityLine = [form.debtor.address.zip, form.debtor.address.city].filter(Boolean).join(' ');
     return [form.debtor.name, cityLine].filter(Boolean).join(' · ');
-  }, [form.debtor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.debtor, t]);
 
   const datesSummary = useMemo(
     () =>
-      `${form.number || '(auto-numbered)'} · issued ${formatDate(form.issueDate)} · due ${formatDate(form.dueDate)}`,
-    [form.number, form.issueDate, form.dueDate],
+      [
+        form.number || t('invoiceEditor.autoNumbered'),
+        t('invoiceEditor.issuedOn', { date: formatDate(form.issueDate) }),
+        t('invoiceEditor.dueOn', { date: formatDate(form.dueDate) }),
+      ].join(' · '),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [form.number, form.issueDate, form.dueDate, t],
   );
 
   const itemsSummary = useMemo(() => {
     const lineCount = form.groups.reduce((sum, g) => sum + g.items.length, 0);
-    const groupWord = form.groups.length === 1 ? 'group' : 'groups';
-    const lineWord = lineCount === 1 ? 'line' : 'lines';
-    return `${form.groups.length} ${groupWord} · ${lineCount} ${lineWord} · ${formatMoney(totals.net, form.currency)} net`;
-  }, [form.groups, totals.net, form.currency]);
+    return [
+      t('invoiceEditor.groupsCount', { count: form.groups.length }),
+      t('invoiceEditor.linesCount', { count: lineCount }),
+      t('invoiceEditor.netAmount', { amount: formatMoney(totals.net, form.currency) }),
+    ].join(' · ');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.groups, totals.net, form.currency, t]);
 
   const messageSummary = useMemo(() => {
-    if (!form.message && !form.notes) return 'No message or notes';
-    return [form.message && `Slip: "${form.message}"`, form.notes && 'Notes added']
+    if (!form.message && !form.notes) return t('invoiceEditor.noMessageOrNotes');
+    return [
+      form.message && t('invoiceEditor.slipMessage', { message: form.message }),
+      form.notes && t('invoiceEditor.notesAdded'),
+    ]
       .filter(Boolean)
       .join(' · ');
-  }, [form.message, form.notes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.message, form.notes, t]);
 
   const update = (patch: Partial<FormState>) => setForm((current) => ({ ...current, ...patch }));
 
@@ -585,17 +612,17 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       router.push(`/invoices/${invoiceId ?? saved._id}`);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The invoice could not be saved.');
+      setError(err instanceof Error ? err.message : t('invoiceEditor.couldNotBeSaved'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (invoiceId && isLoading) return <Loading label="Loading invoice..." />;
+  if (invoiceId && isLoading) return <Loading label={t('invoiceEditor.loadingInvoice')} />;
   if (presets && presets.length === 0) {
     return (
-      <Alert severity="info" action={<Button href="/presets">Create one</Button>}>
-        Create a sender preset first - it holds the IBAN and address every invoice is issued from.
+      <Alert severity="info" action={<Button href="/presets">{t('invoiceEditor.needsPresetAction')}</Button>}>
+        {t('invoiceEditor.needsPresetTitle')}
       </Alert>
     );
   }
@@ -605,7 +632,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       <ErrorNote error={error} />
 
       <Step
-        title="Payment & invoice settings"
+        title={t('invoiceEditor.steps.settings')}
         summary={settingsSummary}
         active={activeSection === 'settings'}
         onToggle={(expanded) => setActiveSection(expanded ? 'settings' : null)}
@@ -615,7 +642,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 select
-                label="Preset"
+                label={t('invoiceEditor.preset')}
                 value={form.presetId}
                 onChange={(e) => {
                   const preset = presets?.find((p) => p._id === e.target.value);
@@ -633,7 +660,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             <Grid size={{ xs: 6, md: 3 }}>
               <TextField
                 select
-                label="Currency"
+                label={t('invoiceEditor.currency')}
                 value={form.currency}
                 onChange={(e) => update({ currency: e.target.value as 'CHF' | 'EUR' })}
                 fullWidth
@@ -648,10 +675,10 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             <Grid size={{ xs: 6, md: 3 }}>
               <TextField
                 select
-                label="Bill language"
+                label={t('invoiceEditor.billLanguage')}
                 value={form.qrLanguage}
                 onChange={(e) => update({ qrLanguage: e.target.value as FormState['qrLanguage'] })}
-                helperText="Defaults to the preset's language; change it per invoice if needed."
+                helperText={t('invoiceEditor.billLanguageHelper')}
                 fullWidth
               >
                 {QR_LANGUAGES.map((language) => (
@@ -665,35 +692,37 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 select
-                label="Reference type"
+                label={t('invoiceEditor.referenceType')}
                 value={form.referenceType}
                 onChange={(e) => update({ referenceType: e.target.value as ReferenceType })}
                 helperText={
                   activePreset && isQrIban(activePreset.iban)
-                    ? 'This preset uses a QR-IBAN, so QRR is required.'
-                    : 'QR-IBAN accounts need QRR; ordinary IBANs take SCOR or none.'
+                    ? t('invoiceEditor.referenceTypeHintQrIban')
+                    : t('invoiceEditor.referenceTypeHintOther')
                 }
                 fullWidth
               >
-                <MenuItem value="QRR">QRR - QR reference</MenuItem>
-                <MenuItem value="SCOR">SCOR - creditor reference</MenuItem>
-                <MenuItem value="NON">No reference</MenuItem>
+                <MenuItem value="QRR">{t('invoiceEditor.referenceQrrOption')}</MenuItem>
+                <MenuItem value="SCOR">{t('invoiceEditor.referenceScorOption')}</MenuItem>
+                <MenuItem value="NON">{t('invoiceEditor.referenceNoneOption')}</MenuItem>
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, md: 8 }}>
               <TextField
-                label="Reference key (optional)"
+                label={t('invoiceEditor.referenceKey')}
                 value={form.referenceKey}
                 onChange={(e) => update({ referenceKey: e.target.value })}
                 disabled={form.referenceType === 'NON'}
                 helperText={
-                  referencePreview.error
-                    ? referencePreview.error
+                  referenceError
+                    ? referenceError
                     : referencePreview.reference
-                      ? `Reference: ${formatReference(referencePreview.reference, form.referenceType)}`
-                      : 'Left empty, the invoice number is used as the key.'
+                      ? t('invoiceEditor.referenceKeyHelperValue', {
+                          reference: formatReference(referencePreview.reference, form.referenceType),
+                        })
+                      : t('invoiceEditor.referenceKeyHelperDefault')
                 }
-                error={Boolean(referencePreview.error)}
+                error={Boolean(referenceError)}
                 fullWidth
               />
             </Grid>
@@ -704,7 +733,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
 
             <Grid size={{ xs: 12, md: 4 }}>
               <DecimalField
-                label="Discount"
+                label={t('invoiceEditor.discount')}
                 value={form.discountPercent}
                 onChange={(value) => update({ discountPercent: value })}
                 onFocus={selectOnFocus}
@@ -722,7 +751,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                     onChange={(e) => update({ vatIncluded: e.target.checked })}
                   />
                 }
-                label="Prices include VAT"
+                label={t('invoiceEditor.pricesIncludeVat')}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
@@ -733,7 +762,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                     onChange={(e) => update({ roundTo5Cents: e.target.checked })}
                   />
                 }
-                label="Round total to 0.05"
+                label={t('invoiceEditor.roundTotal')}
               />
             </Grid>
           </Grid>
@@ -742,7 +771,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       </Step>
 
       <Step
-        title="Client"
+        title={t('invoiceEditor.steps.client')}
         summary={clientSummary}
         active={activeSection === 'client'}
         onToggle={(expanded) => setActiveSection(expanded ? 'client' : null)}
@@ -752,13 +781,13 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             <Grid size={12}>
               <TextField
                 select
-                label="Saved client"
+                label={t('invoiceEditor.savedClient')}
                 value={form.clientId}
                 onChange={(e) => pickClient(e.target.value)}
-                helperText="Pick one to fill the address, or type it in below."
+                helperText={t('invoiceEditor.savedClientHelper')}
                 fullWidth
               >
-                <MenuItem value="">One-off client</MenuItem>
+                <MenuItem value="">{t('invoiceEditor.oneOffClient')}</MenuItem>
                 {(clients ?? []).map((client) => (
                   <MenuItem key={client._id} value={client._id}>
                     {client.name}
@@ -770,14 +799,14 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
               <Stack spacing={2}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                   <TextField
-                    label="Name"
+                    label={t('invoiceEditor.name')}
                     value={form.debtor.name}
                     onChange={(e) => update({ debtor: { ...form.debtor, name: e.target.value } })}
                     required
                     fullWidth
                   />
                   <TextField
-                    label="Email"
+                    label={t('invoiceEditor.email')}
                     type="email"
                     value={form.debtor.email}
                     onChange={(e) =>
@@ -789,7 +818,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                 <Grid container spacing={1.5}>
                   <Grid size={{ xs: 8, sm: 5 }}>
                     <TextField
-                      label="Street"
+                      label={t('invoiceEditor.street')}
                       value={form.debtor.address.street}
                       onChange={(e) =>
                         update({
@@ -804,7 +833,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                   </Grid>
                   <Grid size={{ xs: 4, sm: 2 }}>
                     <TextField
-                      label="No."
+                      label={t('invoiceEditor.buildingNumber')}
                       value={form.debtor.address.buildingNumber}
                       onChange={(e) =>
                         update({
@@ -822,7 +851,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                   </Grid>
                   <Grid size={{ xs: 4, sm: 2 }}>
                     <TextField
-                      label="ZIP"
+                      label={t('invoiceEditor.zip')}
                       value={form.debtor.address.zip}
                       onChange={(e) =>
                         update({
@@ -838,7 +867,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                   </Grid>
                   <Grid size={{ xs: 8, sm: 3 }}>
                     <TextField
-                      label="City"
+                      label={t('invoiceEditor.city')}
                       value={form.debtor.address.city}
                       onChange={(e) =>
                         update({
@@ -870,7 +899,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                   color="text.secondary"
                   sx={{ textTransform: 'uppercase', letterSpacing: 1 }}
                 >
-                  Billed to - as printed on the invoice
+                  {t('invoiceEditor.billedToLabel')}
                 </Typography>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 1 }}>
                   {form.debtor.name || '—'}
@@ -883,7 +912,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                   ))
                 ) : (
                   <Typography variant="body2" color="text.secondary">
-                    No address yet
+                    {t('invoiceEditor.noAddressYet')}
                   </Typography>
                 )}
               </Box>
@@ -897,7 +926,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       </Step>
 
       <Step
-        title="Dates and numbering"
+        title={t('invoiceEditor.steps.dates')}
         summary={datesSummary}
         active={activeSection === 'dates'}
         onToggle={(expanded) => setActiveSection(expanded ? 'dates' : null)}
@@ -906,16 +935,16 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
-                label="Invoice number"
+                label={t('invoiceEditor.invoiceNumber')}
                 value={form.number}
                 onChange={(e) => update({ number: e.target.value })}
-                helperText={invoiceId ? undefined : 'Leave empty to use the preset sequence.'}
+                helperText={invoiceId ? undefined : t('invoiceEditor.invoiceNumberHelper')}
                 fullWidth
               />
             </Grid>
             <Grid size={{ xs: 6, md: 4 }}>
               <TextField
-                label="Invoice date"
+                label={t('invoiceEditor.invoiceDate')}
                 type="date"
                 value={form.issueDate}
                 onChange={(e) => update({ issueDate: e.target.value })}
@@ -925,7 +954,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             </Grid>
             <Grid size={{ xs: 6, md: 4 }}>
               <TextField
-                label="Due date"
+                label={t('invoiceEditor.dueDate')}
                 type="date"
                 value={form.dueDate}
                 onChange={(e) => update({ dueDate: e.target.value })}
@@ -939,7 +968,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       </Step>
 
       <Step
-        title="Line items"
+        title={t('invoiceEditor.steps.items')}
         summary={itemsSummary}
         active={activeSection === 'items'}
         onToggle={(expanded) => setActiveSection(expanded ? 'items' : null)}
@@ -952,12 +981,11 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             sx={{ mb: 2 }}
           >
             <Typography variant="subtitle2" color="text.secondary">
-              One group per standard category from the preset - just add a description and
-              quantity to each line.
+              {t('invoiceEditor.itemsIntro')}
             </Typography>
             {!hasExtraGroup && (
               <Button startIcon={<AddIcon />} onClick={addExtraGroup}>
-                Add Extra group
+                {t('invoiceEditor.addExtraGroup')}
               </Button>
             )}
           </Stack>
@@ -969,14 +997,12 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                 <Paper key={groupIndex} variant="outlined" sx={{ p: 2 }}>
                   <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ mb: 2 }}>
                     <TextField
-                      label="Group title"
-                      placeholder="e.g. Consulting, Travel, Materials"
+                      label={t('invoiceEditor.groupTitle')}
+                      placeholder={t('invoiceEditor.groupTitlePlaceholder')}
                       value={group.title}
                       onChange={(e) => updateGroup(groupIndex, { title: e.target.value })}
                       helperText={
-                        group.showTitle === false
-                          ? 'Hidden from the invoice - only used to organize lines here.'
-                          : undefined
+                        group.showTitle === false ? t('invoiceEditor.groupTitleHiddenHelper') : undefined
                       }
                       fullWidth
                       slotProps={{
@@ -986,8 +1012,8 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                     <Tooltip
                       title={
                         group.showTitle === false
-                          ? 'Title hidden from the invoice - click to show it'
-                          : 'Title shown on the invoice - click to hide it'
+                          ? t('invoiceEditor.groupTitleTooltipHidden')
+                          : t('invoiceEditor.groupTitleTooltipShown')
                       }
                     >
                       <IconButton
@@ -996,8 +1022,8 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                         }
                         aria-label={
                           group.showTitle === false
-                            ? 'Show group title on invoice'
-                            : 'Hide group title on invoice'
+                            ? t('invoiceEditor.showGroupTitle')
+                            : t('invoiceEditor.hideGroupTitle')
                         }
                       >
                         {group.showTitle === false ? <VisibilityOffIcon /> : <VisibilityIcon />}
@@ -1011,7 +1037,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                         }))
                       }
                       disabled={form.groups.length === 1}
-                      aria-label="Remove group"
+                      aria-label={t('invoiceEditor.removeGroup')}
                     >
                       <DeleteOutlineIcon />
                     </IconButton>
@@ -1021,11 +1047,11 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                     <Grid container spacing={1.5} sx={{ mb: 2 }}>
                       <Grid size={{ xs: 4, md: 3 }}>
                         <TextField
-                          label="Unit"
+                          label={t('invoiceEditor.unit')}
                           select
                           value={settings.unit}
                           onChange={(e) => updateGroupSettings(groupIndex, { unit: e.target.value })}
-                          helperText="Applies to every line in this group"
+                          helperText={t('invoiceEditor.unitHelper')}
                           fullWidth
                         >
                           {[...new Set([settings.unit, ...UNIT_SUGGESTIONS])]
@@ -1039,23 +1065,23 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                       </Grid>
                       <Grid size={{ xs: 4, md: 3 }}>
                         <DecimalField
-                          label="Unit price"
+                          label={t('invoiceEditor.unitPrice')}
                           value={settings.unitPrice}
                           onChange={(value) => updateGroupSettings(groupIndex, { unitPrice: value })}
                           onFocus={selectOnFocus}
-                          helperText="Applies to every line in this group"
+                          helperText={t('invoiceEditor.unitHelper')}
                           fullWidth
                         />
                       </Grid>
                       <Grid size={{ xs: 4, md: 3 }}>
                         <TextField
-                          label="VAT"
+                          label={t('invoiceEditor.vat')}
                           select
                           value={settings.vatRate}
                           onChange={(e) =>
                             updateGroupSettings(groupIndex, { vatRate: Number(e.target.value) })
                           }
-                          helperText="Applies to every line in this group"
+                          helperText={t('invoiceEditor.unitHelper')}
                           fullWidth
                         >
                           {[...new Set([settings.vatRate, ...VAT_RATES])]
@@ -1081,7 +1107,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                         color="text.secondary"
                         sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
                       >
-                        Description
+                        {t('invoiceEditor.descriptionHeader')}
                       </Typography>
                     </Grid>
                     {!group.simpleItems && (
@@ -1091,7 +1117,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                           color="text.secondary"
                           sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
                         >
-                          Qty
+                          {t('invoiceEditor.qtyHeader')}
                         </Typography>
                       </Grid>
                     )}
@@ -1101,7 +1127,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                         color="text.secondary"
                         sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
                       >
-                        Amount
+                        {t('invoiceEditor.amountHeader')}
                       </Typography>
                     </Grid>
                     <Grid size={{ sm: 1 }} />
@@ -1112,7 +1138,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                       <Grid container spacing={1.5} key={itemIndex} alignItems="center">
                         <Grid size={{ xs: 12, sm: group.simpleItems ? 8 : 6 }}>
                           <TextField
-                            label="Description"
+                            label={t('invoiceEditor.description')}
                             value={item.description}
                             onChange={(e) =>
                               updateItem(groupIndex, itemIndex, { description: e.target.value })
@@ -1125,7 +1151,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                         {group.simpleItems ? (
                           <Grid size={{ xs: 10, sm: 3 }}>
                             <DecimalField
-                              label="Amount"
+                              label={t('invoiceEditor.amount')}
                               value={item.unitPrice}
                               onChange={(value) =>
                                 updateItem(groupIndex, itemIndex, { unitPrice: value })
@@ -1138,7 +1164,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                           <>
                             <Grid size={{ xs: 5, sm: 2 }}>
                               <DecimalField
-                                label="Qty"
+                                label={t('invoiceEditor.quantity')}
                                 value={item.quantity}
                                 onChange={(value) =>
                                   updateItem(groupIndex, itemIndex, { quantity: value })
@@ -1153,7 +1179,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                                 color="text.secondary"
                                 sx={{ display: { xs: 'block', sm: 'none' } }}
                               >
-                                Amount
+                                {t('invoiceEditor.amountHeader')}
                               </Typography>
                               <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
                                 {formatMoney(lineAmount(item, form.vatIncluded), form.currency)}
@@ -1169,7 +1195,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                               })
                             }
                             disabled={group.items.length === 1}
-                            aria-label="Remove line"
+                            aria-label={t('invoiceEditor.removeLine')}
                           >
                             <DeleteOutlineIcon fontSize="small" />
                           </IconButton>
@@ -1196,10 +1222,12 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                         })
                       }
                     >
-                      Add line
+                      {t('invoiceEditor.addLine')}
                     </Button>
                     <Typography variant="body2" color="text.secondary">
-                      Subtotal {formatMoney(totals.groups[groupIndex]?.net ?? 0, form.currency)}
+                      {t('invoiceEditor.groupSubtotal', {
+                        amount: formatMoney(totals.groups[groupIndex]?.net ?? 0, form.currency),
+                      })}
                     </Typography>
                   </Stack>
                 </Paper>
@@ -1213,45 +1241,57 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Totals
+            {t('invoiceEditor.totalsTitle')}
           </Typography>
           <Stack spacing={1} sx={{ maxWidth: 380, ml: 'auto' }}>
             {multipleGroups &&
               totals.groups.map((group, i) => (
                 <TotalsRow
                   key={i}
-                  label={`Subtotal${group.title && group.showTitle ? ` - ${group.title}` : ''}`}
+                  label={
+                    group.title && group.showTitle
+                      ? t('invoiceEditor.subtotalWithTitle', { title: group.title })
+                      : t('invoiceEditor.subtotal')
+                  }
                   value={formatMoney(group.net, form.currency)}
                 />
               ))}
-            {hasAdjustments && <TotalsRow label="Subtotal" value={formatMoney(totals.net, form.currency)} />}
+            {hasAdjustments && (
+              <TotalsRow label={t('invoiceEditor.subtotal')} value={formatMoney(totals.net, form.currency)} />
+            )}
             {totals.discount > 0 && (
               <>
                 <TotalsRow
-                  label={`Discount ${form.discountPercent}%`}
+                  label={t('invoiceEditor.discountWithPercent', { percent: form.discountPercent })}
                   value={`- ${formatMoney(totals.discount, form.currency)}`}
                 />
-                <TotalsRow label="Net total" value={formatMoney(totals.netAfterDiscount, form.currency)} />
+                <TotalsRow
+                  label={t('invoiceEditor.netTotal')}
+                  value={formatMoney(totals.netAfterDiscount, form.currency)}
+                />
               </>
             )}
             {totals.vatByRate.map((vat, i) => (
               <TotalsRow
                 key={i}
-                label={`VAT ${vat.rate}% (on ${formatMoney(vat.base, form.currency)})`}
+                label={t('invoiceEditor.vatWithRate', {
+                  rate: vat.rate,
+                  base: formatMoney(vat.base, form.currency),
+                })}
                 value={formatMoney(vat.amount, form.currency)}
               />
             ))}
             {totals.roundingAdjustment !== 0 && (
-              <TotalsRow label="Rounding" value={formatMoney(totals.roundingAdjustment, form.currency)} />
+              <TotalsRow label={t('invoiceEditor.rounding')} value={formatMoney(totals.roundingAdjustment, form.currency)} />
             )}
             <Divider />
-            <TotalsRow label="Total" value={formatMoney(totals.total, form.currency)} emphasize />
+            <TotalsRow label={t('invoiceEditor.total')} value={formatMoney(totals.total, form.currency)} emphasize />
           </Stack>
         </CardContent>
       </Card>
 
       <Step
-        title="Message & notes"
+        title={t('invoiceEditor.steps.message')}
         summary={messageSummary}
         active={activeSection === 'message'}
         onToggle={(expanded) => setActiveSection(expanded ? 'message' : null)}
@@ -1260,16 +1300,19 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
           <Grid container spacing={2}>
             <Grid size={12}>
               <TextField
-                label="Message on the slip"
+                label={t('invoiceEditor.messageOnSlip')}
                 value={form.message}
                 onChange={(e) => update({ message: e.target.value.slice(0, MAX_MESSAGE_LENGTH) })}
-                helperText={`${form.message.length}/${MAX_MESSAGE_LENGTH} - shown on the payment part.`}
+                helperText={t('invoiceEditor.messageOnSlipHelper', {
+                  length: form.message.length,
+                  max: MAX_MESSAGE_LENGTH,
+                })}
                 fullWidth
               />
             </Grid>
             <Grid size={12}>
               <TextField
-                label="Notes"
+                label={t('invoiceEditor.notes')}
                 value={form.notes}
                 onChange={(e) => update({ notes: e.target.value })}
                 multiline
@@ -1304,7 +1347,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
         >
           <Box>
             <Typography variant="caption" color="text.secondary">
-              Total incl. VAT
+              {t('invoiceEditor.totalInclVat')}
             </Typography>
             <Typography variant="h6" lineHeight={1.2}>
               {formatMoney(totals.total, form.currency)}
@@ -1314,9 +1357,9 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             variant="contained"
             size="large"
             onClick={save}
-            disabled={busy || Boolean(referencePreview.error) || !form.debtor.name}
+            disabled={busy || Boolean(referenceError) || !form.debtor.name}
           >
-            {busy ? 'Saving...' : invoiceId ? 'Save changes' : 'Create invoice'}
+            {busy ? t('common.saving') : invoiceId ? t('invoiceEditor.saveChanges') : t('invoiceEditor.createInvoice')}
           </Button>
         </Stack>
       </Paper>

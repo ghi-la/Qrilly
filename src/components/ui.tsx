@@ -18,6 +18,7 @@ import {
   type TextFieldProps,
 } from '@mui/material';
 import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { parseDecimal } from '@/lib/client';
 
 export function PageHeader({
@@ -74,12 +75,13 @@ export function EmptyState({
   );
 }
 
-export function Loading({ label = 'Loading...' }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
+  const { t } = useTranslation();
   return (
     <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
       <CircularProgress size={28} />
       <Typography variant="body2" color="text.secondary">
-        {label}
+        {label ?? t('common.loading')}
       </Typography>
     </Stack>
   );
@@ -94,7 +96,7 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Delete',
+  confirmLabel,
   busy,
   onClose,
   onConfirm,
@@ -107,6 +109,7 @@ export function ConfirmDialog({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>{title}</DialogTitle>
@@ -114,9 +117,9 @@ export function ConfirmDialog({
         <DialogContentText>{message}</DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common.cancel')}</Button>
         <Button color="error" variant="contained" onClick={onConfirm} disabled={busy}>
-          {confirmLabel}
+          {confirmLabel ?? t('common.delete')}
         </Button>
       </DialogActions>
     </Dialog>

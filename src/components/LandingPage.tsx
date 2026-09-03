@@ -13,48 +13,54 @@ import BoltIcon from '@mui/icons-material/Bolt';
 import LockIcon from '@mui/icons-material/Lock';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import Link from 'next/link';
-
-const FEATURES = [
-  {
-    icon: <QrCode2Icon color="primary" />,
-    title: 'Standards-compliant slips',
-    body: 'QR-IBAN with a QRR reference, ISO 11649 creditor references, or no reference at all - each one validated before it reaches the page.',
-  },
-  {
-    icon: <BoltIcon color="primary" />,
-    title: 'Presets, not retyping',
-    body: 'Save a sender profile per business or mandate: logo, address, IBAN, numbering, VAT rate and payment terms.',
-  },
-  {
-    icon: <LockIcon color="primary" />,
-    title: 'Encrypted where it counts',
-    body: 'Client names, addresses and line-item text are encrypted at rest under a per-account key. PDFs are rebuilt on demand, never stored.',
-  },
-];
+import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 export default function LandingPage({ registrationOpen }: { registrationOpen: boolean }) {
+  const { t } = useTranslation();
+
+  const FEATURES = [
+    {
+      icon: <QrCode2Icon color="primary" />,
+      title: t('landing.features.standards.title'),
+      body: t('landing.features.standards.body'),
+    },
+    {
+      icon: <BoltIcon color="primary" />,
+      title: t('landing.features.presets.title'),
+      body: t('landing.features.presets.body'),
+    },
+    {
+      icon: <LockIcon color="primary" />,
+      title: t('landing.features.encrypted.title'),
+      body: t('landing.features.encrypted.body'),
+    },
+  ];
+
   return (
     <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
       <Container maxWidth="md" sx={{ py: { xs: 6, md: 12 } }}>
+        <Stack direction="row" justifyContent="flex-end">
+          <LanguageSwitcher />
+        </Stack>
         <Typography variant="overline" color="primary">
-          Swiss QR-bill invoicing
+          {t('landing.overline')}
         </Typography>
         <Typography variant="h1" sx={{ fontSize: { xs: '2.5rem', md: '3.75rem' }, mt: 1 }}>
-          Invoices that pay themselves in.
+          {t('landing.heading')}
         </Typography>
         <Typography variant="h6" color="text.secondary" sx={{ fontWeight: 400, mt: 2, maxWidth: 620 }}>
-          Build a Swiss QR bill from reusable presets, group your line items however the job is
-          actually billed, and download or email the PDF in one step.
+          {t('landing.subheading')}
         </Typography>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 4 }}>
           {registrationOpen && (
             <Button component={Link} href="/register" variant="contained" size="large">
-              Create an account
+              {t('landing.createAccount')}
             </Button>
           )}
           <Button component={Link} href="/login" variant="outlined" size="large">
-            Sign in
+            {t('landing.signIn')}
           </Button>
         </Stack>
 

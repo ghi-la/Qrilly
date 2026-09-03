@@ -20,6 +20,7 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import SendInvoiceDialog from '@/components/SendInvoiceDialog';
 import { ConfirmDialog } from '@/components/ui';
 import { formatDate, formatMoney, send } from '@/lib/client';
@@ -53,6 +54,7 @@ export default function InvoiceCard({
   onChanged: () => void;
   showDueDate?: boolean;
 }) {
+  const { t } = useTranslation();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -87,10 +89,16 @@ export default function InvoiceCard({
     }
   };
 
+  const STATUS_LABEL: Record<string, string> = {
+    draft: t('invoices.statusLabel.draft'),
+    sent: t('invoices.statusLabel.sent'),
+    paid: t('invoices.statusLabel.paid'),
+    canceled: t('invoices.statusLabel.canceled'),
+  };
   const statusChip = (
     <Chip
       size="small"
-      label={overdue ? 'overdue' : invoice.status}
+      label={overdue ? t('invoices.statusLabel.overdue') : STATUS_LABEL[invoice.status] ?? invoice.status}
       color={overdue ? 'error' : STATUS_COLOR[invoice.status] ?? 'default'}
     />
   );
@@ -108,11 +116,11 @@ export default function InvoiceCard({
             <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="flex-start">
               <Stack sx={{ minWidth: 0, flex: 1 }}>
                 <Typography variant="subtitle1" noWrap>
-                  {invoice.debtor?.name || 'Untitled client'}
+                  {invoice.debtor?.name || t('invoiceCard.untitledClient')}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" noWrap>
-                  {invoice.number} - issued {formatDate(invoice.issueDate)}
-                  {showDueDate && ` - due ${formatDate(invoice.dueDate)}`}
+                  {invoice.number} - {t('invoiceCard.issued', { date: formatDate(invoice.issueDate) })}
+                  {showDueDate && ` - ${t('invoiceCard.due', { date: formatDate(invoice.dueDate) })}`}
                 </Typography>
               </Stack>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
@@ -125,7 +133,7 @@ export default function InvoiceCard({
                   {statusChip}
                   {amount}
                 </Stack>
-                <IconButton size="small" aria-label="Quick actions" onClick={openMenu}>
+                <IconButton size="small" aria-label={t('invoiceCard.quickActions')} onClick={openMenu}>
                   <MoreVertIcon fontSize="small" />
                 </IconButton>
               </Stack>
@@ -149,7 +157,7 @@ export default function InvoiceCard({
           <ListItemIcon>
             <DownloadIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Download PDF</ListItemText>
+          <ListItemText>{t('invoices.downloadPdf')}</ListItemText>
         </MenuItem>
         <MenuItem
           component="a"
@@ -161,7 +169,7 @@ export default function InvoiceCard({
           <ListItemIcon>
             <VisibilityIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Preview</ListItemText>
+          <ListItemText>{t('invoices.preview')}</ListItemText>
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -172,14 +180,14 @@ export default function InvoiceCard({
           <ListItemIcon>
             <SendIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText>Email</ListItemText>
+          <ListItemText>{t('invoices.email')}</ListItemText>
         </MenuItem>
         {invoice.status !== 'paid' && (
           <MenuItem onClick={markPaid}>
             <ListItemIcon>
               <TaskAltIcon fontSize="small" />
             </ListItemIcon>
-            <ListItemText>Mark paid</ListItemText>
+            <ListItemText>{t('invoices.markPaid')}</ListItemText>
           </MenuItem>
         )}
         <MenuItem
@@ -192,7 +200,7 @@ export default function InvoiceCard({
           <ListItemIcon>
             <DeleteOutlineIcon fontSize="small" color="error" />
           </ListItemIcon>
-          <ListItemText>Delete</ListItemText>
+          <ListItemText>{t('invoices.delete')}</ListItemText>
         </MenuItem>
       </Menu>
 
@@ -208,8 +216,8 @@ export default function InvoiceCard({
 
       <ConfirmDialog
         open={deleteOpen}
-        title="Delete this invoice?"
-        message="The record and everything needed to rebuild its PDF are removed. This cannot be undone."
+        title={t('invoices.deleteConfirmTitle')}
+        message={t('invoices.deleteConfirmMessage')}
         busy={busy}
         onClose={() => setDeleteOpen(false)}
         onConfirm={remove}

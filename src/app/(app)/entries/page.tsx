@@ -22,6 +22,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type FocusEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import { ConfirmDialog, DecimalField, EmptyState, ErrorNote, Loading, PageHeader } from '@/components/ui';
 import { fetcher, formatDate, send, toDateInput } from '@/lib/client';
@@ -83,18 +84,21 @@ function monthKeyOf(dateStr: string) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function monthLabelOf(key: string) {
+// Spelled out, unlike the numeric dd.mm.yyyy dates elsewhere (formatDate's
+// fixed de-CH locale) - this one is a real word ("September" vs "settembre"),
+// so it follows the active UI language rather than staying fixed.
+const MONTH_LOCALE: Record<string, string> = { en: 'en-GB', it: 'it-CH' };
+
+function monthLabelOf(key: string, uiLanguage: string) {
   const [year, month] = key.split('-').map(Number);
-  // Spelled out, unlike the numeric dd.mm.yyyy dates elsewhere (formatDate's
-  // de-CH locale), so this uses English to match the rest of the UI's copy.
-  return new Date(year, month - 1, 1).toLocaleDateString('en-GB', {
+  return new Date(year, month - 1, 1).toLocaleDateString(MONTH_LOCALE[uiLanguage] ?? 'en-GB', {
     month: 'long',
     year: 'numeric',
   });
 }
 
 /** Most recent month first, so this month's work is always what you see first. */
-function groupByMonth(entries: Entry[]) {
+function groupByMonth(entries: Entry[], uiLanguage: string) {
   const map = new Map<string, Entry[]>();
   for (const entry of entries) {
     const key = monthKeyOf(entry.entryDate);
@@ -103,7 +107,7 @@ function groupByMonth(entries: Entry[]) {
   }
   return [...map.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([key, monthEntries]) => ({ key, label: monthLabelOf(key), entries: monthEntries }));
+    .map(([key, monthEntries]) => ({ key, label: monthLabelOf(key, uiLanguage), entries: monthEntries }));
 }
 
 /** Each invoice gets its own "View invoice" once, not once per entry it billed. */
@@ -118,6 +122,7 @@ function groupByInvoice(entries: Entry[]) {
 }
 
 export default function EntriesPage() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { data: presets } = useSWR<PresetOption[]>('/api/presets', fetcher);
   const { data: clients } = useSWR<ClientOption[]>('/api/clients', fetcher);
@@ -176,7 +181,7 @@ export default function EntriesPage() {
       resetToAddMore();
       void mutate();
     } catch (err) {
-      setEntryError(err instanceof Error ? err.message : 'The entry could not be saved.');
+      setEntryError(err instanceof Error ? err.message : t('entries.entryCouldNotBeSaved'));
     } finally {
       setEntryBusy(false);
     }
@@ -246,8 +251,8 @@ export default function EntriesPage() {
         map.set(key, {
           presetId: entry.presetId,
           clientId: entry.clientId,
-          presetName: presets?.find((p) => p._id === entry.presetId)?.name ?? 'Deleted preset',
-          clientName: clients?.find((c) => c._id === entry.clientId)?.name ?? 'Deleted client',
+          presetName: presets?.find((p) => p._id === entry.presetId)?.name ?? t('entries.deletedPreset'),
+          clientName: clients?.find((c) => c._id === entry.clientId)?.name ?? t('entries.deletedClient'),
           unbilled: [],
           billed: [],
         });
@@ -256,36 +261,39 @@ export default function EntriesPage() {
       (entry.billed ? bucket.billed : bucket.unbilled).push(entry);
     }
     return [...map.values()].sort((a, b) => a.clientName.localeCompare(b.clientName));
-  }, [entries, presets, clients]);
+  }, [entries, presets, clients, t]);
 
   return (
     <>
-      <PageHeader
-        title="Work log"
-        subtitle="Log finished work in seconds, then turn a batch of it into an invoice whenever you're ready."
-      />
+      <PageHeader title={t('entries.title')} subtitle={t('entries.subtitle')} />
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            {editingId ? 'Edit entry' : 'Log work'}
+            {editingId ? t('entries.editEntry') : t('entries.logWork')}
           </Typography>
           <ErrorNote error={entryError} />
 
           {!presets || presets.length === 0 ? (
-            <Alert severity="info" action={<Button component={Link} href="/presets">Create one</Button>}>
-              Create a sender preset first - it holds the standard groups you bill under.
+            <Alert
+              severity="info"
+              action={<Button component={Link} href="/presets">{t('entries.needsPresetAction')}</Button>}
+            >
+              {t('entries.needsPresetTitle')}
             </Alert>
           ) : !clients || clients.length === 0 ? (
-            <Alert severity="info" action={<Button component={Link} href="/clients">Add one</Button>}>
-              Add a client first, so entries can be grouped and billed together.
+            <Alert
+              severity="info"
+              action={<Button component={Link} href="/clients">{t('entries.needsClientAction')}</Button>}
+            >
+              {t('entries.needsClientTitle')}
             </Alert>
           ) : (
             <Stack spacing={2}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
                   select
-                  label="Preset"
+                  label={t('entries.preset')}
                   value={entryForm.presetId}
                   onChange={(e) =>
                     setEntryForm((f) => ({ ...f, presetId: e.target.value, groupName: '' }))
@@ -300,7 +308,7 @@ export default function EntriesPage() {
                 </TextField>
                 <TextField
                   select
-                  label="Client"
+                  label={t('entries.client')}
                   value={entryForm.clientId}
                   onChange={(e) => setEntryForm((f) => ({ ...f, clientId: e.target.value }))}
                   fullWidth
@@ -316,15 +324,15 @@ export default function EntriesPage() {
               {groupOptions.length === 0 ? (
                 <Alert
                   severity="warning"
-                  action={<Button component={Link} href="/presets">Configure</Button>}
+                  action={<Button component={Link} href="/presets">{t('entries.needsLineGroupsAction')}</Button>}
                 >
-                  This preset has no line-item groups yet - add some to its settings first.
+                  {t('entries.needsLineGroupsTitle')}
                 </Alert>
               ) : (
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                   <TextField
                     select
-                    label="Group"
+                    label={t('entries.group')}
                     value={entryForm.groupName}
                     onChange={(e) => setEntryForm((f) => ({ ...f, groupName: e.target.value }))}
                     fullWidth
@@ -336,11 +344,13 @@ export default function EntriesPage() {
                     ))}
                   </TextField>
                   <DecimalField
-                    label="Qty"
+                    label={t('entries.quantity')}
                     value={entryForm.quantity}
                     onChange={(value) => setEntryForm((f) => ({ ...f, quantity: value }))}
                     onFocus={selectOnFocus}
-                    helperText={selectedGroup ? `Unit: ${selectedGroup.unit || '—'}` : undefined}
+                    helperText={
+                      selectedGroup ? t('entries.unitHelper', { unit: selectedGroup.unit || '—' }) : undefined
+                    }
                     fullWidth
                   />
                 </Stack>
@@ -348,13 +358,13 @@ export default function EntriesPage() {
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
-                  label="Note (optional)"
+                  label={t('entries.note')}
                   value={entryForm.note}
                   onChange={(e) => setEntryForm((f) => ({ ...f, note: e.target.value }))}
                   fullWidth
                 />
                 <TextField
-                  label="Date"
+                  label={t('entries.date')}
                   type="date"
                   value={entryForm.entryDate}
                   onChange={(e) => setEntryForm((f) => ({ ...f, entryDate: e.target.value }))}
@@ -364,13 +374,13 @@ export default function EntriesPage() {
               </Stack>
 
               <Stack direction="row" spacing={1} justifyContent="flex-end">
-                {editingId && <Button onClick={cancelEdit}>Cancel</Button>}
+                {editingId && <Button onClick={cancelEdit}>{t('common.cancel')}</Button>}
                 <Button
                   variant="contained"
                   onClick={submitEntry}
                   disabled={entryBusy || !canSubmit}
                 >
-                  {entryBusy ? 'Saving...' : editingId ? 'Save changes' : 'Add entry'}
+                  {entryBusy ? t('common.saving') : editingId ? t('entries.save') : t('entries.add')}
                 </Button>
               </Stack>
             </Stack>
@@ -382,8 +392,8 @@ export default function EntriesPage() {
         <Loading />
       ) : groups.length === 0 ? (
         <EmptyState
-          title="Nothing logged yet"
-          description="Entries you log above will show up here, grouped by preset and client, ready to bill."
+          title={t('entries.nothingLoggedTitle')}
+          description={t('entries.nothingLoggedDescription')}
         />
       ) : (
         <Stack spacing={2}>
@@ -407,7 +417,7 @@ export default function EntriesPage() {
                   {group.unbilled.length > 0 ? (
                     <>
                       <Stack spacing={2.5} sx={{ mt: 2 }}>
-                        {groupByMonth(group.unbilled).map((month) => {
+                        {groupByMonth(group.unbilled, i18n.language).map((month) => {
                           const monthIds = month.entries.map((e) => e._id);
                           const monthSelectedCount = monthIds.filter((id) => selected.has(id)).length;
                           const monthAllSelected =
@@ -424,7 +434,8 @@ export default function EntriesPage() {
                                   {month.label}
                                 </Typography>
                                 <Button size="small" onClick={() => toggleSelectAll(monthIds)}>
-                                  {monthAllSelected ? 'Deselect' : 'Select'} ({month.entries.length})
+                                  {monthAllSelected ? t('entries.deselect') : t('entries.select')} (
+                                  {month.entries.length})
                                 </Button>
                               </Stack>
                               <Stack spacing={1.5} divider={<Divider flexItem />}>
@@ -468,14 +479,14 @@ export default function EntriesPage() {
                                       <IconButton
                                         size="small"
                                         onClick={() => startEdit(entry)}
-                                        aria-label="Edit entry"
+                                        aria-label={t('entries.editEntryAction')}
                                       >
                                         <EditIcon fontSize="small" />
                                       </IconButton>
                                       <IconButton
                                         size="small"
                                         onClick={() => setPendingDelete(entry)}
-                                        aria-label="Delete entry"
+                                        aria-label={t('entries.deleteEntryAction')}
                                       >
                                         <DeleteOutlineIcon fontSize="small" />
                                       </IconButton>
@@ -496,14 +507,16 @@ export default function EntriesPage() {
                         sx={{ mt: 2 }}
                       >
                         <Button size="small" onClick={() => toggleSelectAll(ids)}>
-                          {allSelected ? 'Deselect all' : 'Select all'}
+                          {allSelected ? t('entries.deselectAll') : t('entries.selectAll')}
                         </Button>
                         <Button
                           variant="contained"
                           disabled={selectedIds.length === 0}
                           onClick={() => createInvoiceFrom(selectedIds)}
                         >
-                          Create invoice{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+                          {selectedIds.length > 0
+                            ? t('entries.createInvoiceWithCount', { count: selectedIds.length })
+                            : t('entries.createInvoice')}
                         </Button>
                       </Stack>
                     </>
@@ -517,7 +530,7 @@ export default function EntriesPage() {
                     >
                       <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                         <Typography variant="body2" color="text.secondary">
-                          Billed ({group.billed.length})
+                          {t('entries.billedWithCount', { count: group.billed.length })}
                         </Typography>
                       </AccordionSummary>
                       <AccordionDetails>
@@ -533,7 +546,9 @@ export default function EntriesPage() {
                                   alignItems="center"
                                 >
                                   <Typography variant="body2" fontWeight={600} noWrap>
-                                    {invoice ? `Invoice ${invoice.number}` : 'Invoice'}
+                                    {invoice
+                                      ? t('entries.invoiceWithNumber', { number: invoice.number })
+                                      : t('entries.invoiceFallback')}
                                   </Typography>
                                   <Button
                                     size="small"
@@ -541,7 +556,7 @@ export default function EntriesPage() {
                                     href={`/invoices/${invoiceId}`}
                                     sx={{ flexShrink: 0 }}
                                   >
-                                    View invoice
+                                    {t('entries.viewInvoice')}
                                   </Button>
                                 </Stack>
                                 <Stack spacing={1} sx={{ pl: 1 }}>
@@ -573,8 +588,8 @@ export default function EntriesPage() {
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
-        title="Delete this entry?"
-        message="This removes the logged entry entirely. It hasn't been billed yet, so nothing else is affected."
+        title={t('entries.deleteConfirmTitle')}
+        message={t('entries.deleteConfirmMessage')}
         onClose={() => setPendingDelete(null)}
         onConfirm={confirmDelete}
       />
