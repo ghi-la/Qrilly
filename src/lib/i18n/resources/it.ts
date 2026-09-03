@@ -420,6 +420,9 @@ const it: typeof en = {
     saving: 'Salvataggio…',
     saved: 'Salvato.',
     couldNotBeSaved: 'Non è stato possibile salvare le impostazioni.',
+    presetsHeading: 'Preset',
+    presetsDescription: 'Profili mittente riutilizzabili: logo, indirizzo, IBAN, numerazione e valori predefiniti.',
+    managePresets: 'Gestisci preset',
   },
 };
 

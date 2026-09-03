@@ -2,17 +2,20 @@
 
 import {
   Avatar,
+  Breadcrumbs,
   Button,
   Card,
   CardContent,
   Chip,
   IconButton,
+  Link as MuiLink,
   Stack,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
@@ -44,6 +47,13 @@ export default function PresetsPage() {
 
   return (
     <>
+      <Breadcrumbs sx={{ mb: 1 }}>
+        <MuiLink component={Link} href="/settings" underline="hover" color="inherit">
+          {t('nav.settings')}
+        </MuiLink>
+        <Typography color="text.primary">{t('presets.title')}</Typography>
+      </Breadcrumbs>
+
       <PageHeader
         title={t('presets.title')}
         subtitle={t('presets.subtitle')}

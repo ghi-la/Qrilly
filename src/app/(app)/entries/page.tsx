@@ -277,7 +277,7 @@ export default function EntriesPage() {
           {!presets || presets.length === 0 ? (
             <Alert
               severity="info"
-              action={<Button component={Link} href="/presets">{t('entries.needsPresetAction')}</Button>}
+              action={<Button component={Link} href="/settings/presets">{t('entries.needsPresetAction')}</Button>}
             >
               {t('entries.needsPresetTitle')}
             </Alert>
@@ -324,7 +324,7 @@ export default function EntriesPage() {
               {groupOptions.length === 0 ? (
                 <Alert
                   severity="warning"
-                  action={<Button component={Link} href="/presets">{t('entries.needsLineGroupsAction')}</Button>}
+                  action={<Button component={Link} href="/settings/presets">{t('entries.needsLineGroupsAction')}</Button>}
                 >
                   {t('entries.needsLineGroupsTitle')}
                 </Alert>

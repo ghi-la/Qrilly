@@ -418,6 +418,9 @@ const en = {
     saving: 'Saving…',
     saved: 'Saved.',
     couldNotBeSaved: 'The settings could not be saved.',
+    presetsHeading: 'Presets',
+    presetsDescription: 'Reusable sender profiles: logo, address, IBAN, numbering and defaults.',
+    managePresets: 'Manage presets',
   },
 };
 

@@ -2,6 +2,8 @@
 
 import { Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid2';
+import TuneIcon from '@mui/icons-material/Tune';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
@@ -96,6 +98,20 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card sx={{ mt: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            {t('settings.presetsHeading')}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {t('settings.presetsDescription')}
+          </Typography>
+          <Button component={Link} href="/settings/presets" variant="outlined" startIcon={<TuneIcon />}>
+            {t('settings.managePresets')}
+          </Button>
+        </CardContent>
+      </Card>
     </>
   );
 }

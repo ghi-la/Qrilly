@@ -62,6 +62,7 @@ import {
   type InvoiceGroup,
   type InvoiceItem,
 } from '@/lib/totals';
+import { BOTTOM_BAR_HEIGHT } from './AppShell';
 import { DecimalField, ErrorNote, Loading } from './ui';
 
 interface PresetLineGroup {
@@ -621,14 +622,14 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
   if (invoiceId && isLoading) return <Loading label={t('invoiceEditor.loadingInvoice')} />;
   if (presets && presets.length === 0) {
     return (
-      <Alert severity="info" action={<Button href="/presets">{t('invoiceEditor.needsPresetAction')}</Button>}>
+      <Alert severity="info" action={<Button href="/settings/presets">{t('invoiceEditor.needsPresetAction')}</Button>}>
         {t('invoiceEditor.needsPresetTitle')}
       </Alert>
     );
   }
 
   return (
-    <Stack spacing={3} sx={{ pb: 12 }}>
+    <Stack spacing={3} sx={{ pb: { xs: `calc(96px + ${BOTTOM_BAR_HEIGHT}px)`, md: 12 } }}>
       <ErrorNote error={error} />
 
       <Step
@@ -1328,7 +1329,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
         elevation={3}
         sx={{
           position: 'fixed',
-          bottom: 0,
+          bottom: { xs: `${BOTTOM_BAR_HEIGHT}px`, md: 0 },
           left: { xs: 0, md: '232px' },
           right: 0,
           p: 2,
