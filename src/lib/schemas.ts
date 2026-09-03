@@ -24,6 +24,13 @@ export const partySchema = z.object({
   address: addressSchema,
 });
 
+export const presetLineGroupSchema = z.object({
+  name: trimmed(60).min(1, 'Give the group a name.'),
+  unit: trimmed(20).default(''),
+  unitPrice: z.number().finite().default(0),
+  vatRate: z.number().min(0).max(100).default(0),
+});
+
 export const presetSchema = z.object({
   name: trimmed(80).min(1, 'Give the preset a name.'),
   isDefault: z.boolean().default(false),
@@ -45,6 +52,7 @@ export const presetSchema = z.object({
   footerNote: trimmed(500).default(''),
   emailSubject: trimmed(200).default(''),
   emailBody: trimmed(4000).default(''),
+  lineGroups: z.array(presetLineGroupSchema).max(30).default([]),
 });
 
 export const clientSchema = z.object({
@@ -65,6 +73,7 @@ export const itemSchema = z.object({
 export const groupSchema = z.object({
   title: trimmed(120).default(''),
   showTitle: z.boolean().default(true),
+  simpleItems: z.boolean().default(false),
   items: z.array(itemSchema).max(200),
 });
 

@@ -82,3 +82,15 @@ export function houseNumberChars(value: string) {
 export function ibanChars(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9\s]/g, '');
 }
+
+/**
+ * Many mobile keyboards offer only "," as a decimal separator depending on
+ * the device's locale, but a plain `type="number"` input silently rejects
+ * that character - the field just won't accept a decimal at all. Fields that
+ * need a decimal use `type="text"` with `inputMode="decimal"` instead and
+ * parse through this, so "," and "." are accepted and treated as equal.
+ */
+export function parseDecimal(value: string): number {
+  const n = Number(value.replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}

@@ -13,9 +13,12 @@ import {
   DialogContentText,
   DialogTitle,
   Stack,
+  TextField,
   Typography,
+  type TextFieldProps,
 } from '@mui/material';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { parseDecimal } from '@/lib/client';
 
 export function PageHeader({
   title,
@@ -117,5 +120,51 @@ export function ConfirmDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+/**
+ * A number field that types like a text field. Binding a TextField's value
+ * straight to a number forces every keystroke to round-trip through
+ * Number(...) and back to a string - so a decimal point typed after "199"
+ * evaluates to plain 199, redisplays as "199" with the point gone, and the
+ * next digit lands on the truncated integer instead of after a decimal.
+ * This keeps its own local text while the value already represents what's
+ * typed, and only snaps back to the committed number when it changes for a
+ * reason other than this field's own onChange (loading a different record,
+ * a sibling control changing a shared setting, etc).
+ */
+export function DecimalField({
+  value,
+  onChange,
+  slotProps,
+  ...props
+}: Omit<TextFieldProps, 'value' | 'onChange' | 'type'> & {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+
+  useEffect(() => {
+    if (parseDecimal(text) !== value) setText(String(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return (
+    <TextField
+      {...props}
+      value={text}
+      onChange={(e) => {
+        // "," and "." are the same decimal separator here; always display it
+        // as "." regardless of which one was typed.
+        const raw = e.target.value.replace(',', '.');
+        setText(raw);
+        onChange(parseDecimal(raw));
+      }}
+      slotProps={{
+        ...slotProps,
+        htmlInput: { inputMode: 'decimal', ...slotProps?.htmlInput },
+      }}
+    />
   );
 }

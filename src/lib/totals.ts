@@ -19,6 +19,12 @@ export interface InvoiceGroup {
   title: string;
   /** Whether the title prints on the invoice; defaults to true when unset. */
   showTitle?: boolean;
+  /**
+   * Flat "bonus" items: just a description and an amount, no unit/quantity/VAT
+   * breakdown. Used for the ad-hoc "Extra" group, as opposed to a group whose
+   * unit price and VAT rate come from a business preset.
+   */
+  simpleItems?: boolean;
   items: InvoiceItem[];
 }
 
@@ -109,7 +115,7 @@ export function computeTotals(groups: InvoiceGroup[], options: TotalsOptions = {
 
 export const emptyItem = (): InvoiceItem => ({
   description: '',
-  quantity: 1,
+  quantity: 0,
   unit: 'pcs',
   unitPrice: 0,
   vatRate: 8.1,
@@ -119,4 +125,22 @@ export const emptyGroup = (): InvoiceGroup => ({
   title: '',
   showTitle: true,
   items: [emptyItem()],
+});
+
+/** Always offered alongside a preset's own groups, for anything that doesn't fit. */
+export const EXTRA_GROUP_TITLE = 'Extra';
+
+export const emptySimpleItem = (): InvoiceItem => ({
+  description: '',
+  quantity: 1,
+  unit: '',
+  unitPrice: 0,
+  vatRate: 0,
+});
+
+export const emptyExtraGroup = (): InvoiceGroup => ({
+  title: EXTRA_GROUP_TITLE,
+  showTitle: true,
+  simpleItems: true,
+  items: [emptySimpleItem()],
 });

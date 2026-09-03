@@ -18,6 +18,14 @@ export interface Party {
   address: Address;
 }
 
+/** A standard line-item group template a business bills under (see PresetDoc.lineGroups). */
+export interface PresetLineGroup {
+  name: string;
+  unit: string;
+  unitPrice: number;
+  vatRate: number;
+}
+
 export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'canceled';
 
 export interface UserDoc {
@@ -66,6 +74,8 @@ export interface PresetDoc {
   footerNote: string;
   emailSubject: string;
   emailBody: string;
+  /** Standard groups every invoice from this preset starts with; see PresetLineGroup. */
+  lineGroups: PresetLineGroup[];
 }
 
 export interface ClientDoc {
@@ -145,7 +155,18 @@ const GroupSchema = new Schema(
   {
     title: { type: String, default: '' },
     showTitle: { type: Boolean, default: true },
+    simpleItems: { type: Boolean, default: false },
     items: { type: [ItemSchema], default: [] },
+  },
+  { _id: false },
+);
+
+const PresetLineGroupSchema = new Schema<PresetLineGroup>(
+  {
+    name: { type: String, required: true },
+    unit: { type: String, default: '' },
+    unitPrice: { type: Number, default: 0 },
+    vatRate: { type: Number, default: 0 },
   },
   { _id: false },
 );
@@ -219,6 +240,7 @@ const PresetSchema = new Schema<PresetDoc>(
       default:
         'Dear {{client}},\n\nPlease find invoice {{number}} attached, for {{total}}, due on {{dueDate}}.\n\nKind regards,\n{{creditor}}',
     },
+    lineGroups: { type: [PresetLineGroupSchema], default: [] },
   },
   { timestamps: true },
 );

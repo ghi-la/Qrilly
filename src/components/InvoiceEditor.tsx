@@ -54,12 +54,21 @@ import {
   UNIT_SUGGESTIONS,
   VAT_RATES,
   computeTotals,
+  emptyExtraGroup,
   emptyGroup,
   emptyItem,
+  emptySimpleItem,
   type InvoiceGroup,
   type InvoiceItem,
 } from '@/lib/totals';
-import { ErrorNote, Loading } from './ui';
+import { DecimalField, ErrorNote, Loading } from './ui';
+
+interface PresetLineGroup {
+  name: string;
+  unit: string;
+  unitPrice: number;
+  vatRate: number;
+}
 
 interface Preset {
   _id: string;
@@ -73,6 +82,7 @@ interface Preset {
   vatIncluded: boolean;
   roundTo5Cents: boolean;
   isDefault: boolean;
+  lineGroups: PresetLineGroup[];
 }
 
 interface ClientRecord {
@@ -319,8 +329,19 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
       dueDate: seedDates
         ? toDateInput(addDays(new Date(), preset.paymentTermDays ?? 30))
         : current.dueDate,
+      // Every invoice starts with one group per standard category the preset
+      // defines, pre-filled with that category's unit/price/VAT so only a
+      // description and quantity are left to fill in.
       groups: seedDates
-        ? [{ title: '', items: [{ ...emptyItem(), vatRate: preset.defaultVatRate ?? 0 }] }]
+        ? preset.lineGroups.length > 0
+          ? preset.lineGroups.map((g) => ({
+              title: g.name,
+              showTitle: true,
+              items: [
+                { description: '', quantity: 0, unit: g.unit, unitPrice: g.unitPrice, vatRate: g.vatRate },
+              ],
+            }))
+          : [{ title: '', items: [{ ...emptyItem(), vatRate: preset.defaultVatRate ?? 0 }] }]
         : current.groups,
     }));
   }
@@ -397,6 +418,11 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
   }, [form.message, form.notes]);
 
   const update = (patch: Partial<FormState>) => setForm((current) => ({ ...current, ...patch }));
+
+  const hasExtraGroup = form.groups.some((group) => group.simpleItems);
+
+  const addExtraGroup = () =>
+    setForm((current) => ({ ...current, groups: [...current.groups, emptyExtraGroup()] }));
 
   const updateGroup = (index: number, patch: Partial<InvoiceGroup>) =>
     setForm((current) => ({
@@ -605,13 +631,14 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             </Grid>
 
             <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
+              <DecimalField
                 label="Discount"
-                type="number"
                 value={form.discountPercent}
-                onChange={(e) => update({ discountPercent: Number(e.target.value) })}
+                onChange={(value) => update({ discountPercent: value })}
                 onFocus={selectOnFocus}
-                slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
+                slotProps={{
+                  input: { endAdornment: <InputAdornment position="end">%</InputAdornment> },
+                }}
                 fullWidth
               />
             </Grid>
@@ -853,14 +880,14 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             sx={{ mb: 2 }}
           >
             <Typography variant="subtitle2" color="text.secondary">
-              Add lines, grouped by rate or job.
+              One group per standard category from the preset - just add a description and
+              quantity to each line.
             </Typography>
-            <Button
-              startIcon={<AddIcon />}
-              onClick={() => update({ groups: [...form.groups, emptyGroup()] })}
-            >
-              Add group
-            </Button>
+            {!hasExtraGroup && (
+              <Button startIcon={<AddIcon />} onClick={addExtraGroup}>
+                Add Extra group
+              </Button>
+            )}
           </Stack>
 
           <Stack spacing={3}>
@@ -906,7 +933,10 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                     </Tooltip>
                     <IconButton
                       onClick={() =>
-                        update({ groups: form.groups.filter((_, i) => i !== groupIndex) })
+                        setForm((current) => ({
+                          ...current,
+                          groups: current.groups.filter((_, i) => i !== groupIndex),
+                        }))
                       }
                       disabled={form.groups.length === 1}
                       aria-label="Remove group"
@@ -915,66 +945,65 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                     </IconButton>
                   </Stack>
 
-                  <Grid container spacing={1.5} sx={{ mb: 2 }}>
-                    <Grid size={{ xs: 4, md: 3 }}>
-                      <TextField
-                        label="Unit"
-                        select
-                        value={settings.unit}
-                        onChange={(e) => updateGroupSettings(groupIndex, { unit: e.target.value })}
-                        helperText="Applies to every line in this group"
-                        fullWidth
-                      >
-                        {[...new Set([settings.unit, ...UNIT_SUGGESTIONS])]
-                          .filter(Boolean)
-                          .map((unit) => (
-                            <MenuItem key={unit} value={unit}>
-                              {unit}
-                            </MenuItem>
-                          ))}
-                      </TextField>
+                  {!group.simpleItems && (
+                    <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                      <Grid size={{ xs: 4, md: 3 }}>
+                        <TextField
+                          label="Unit"
+                          select
+                          value={settings.unit}
+                          onChange={(e) => updateGroupSettings(groupIndex, { unit: e.target.value })}
+                          helperText="Applies to every line in this group"
+                          fullWidth
+                        >
+                          {[...new Set([settings.unit, ...UNIT_SUGGESTIONS])]
+                            .filter(Boolean)
+                            .map((unit) => (
+                              <MenuItem key={unit} value={unit}>
+                                {unit}
+                              </MenuItem>
+                            ))}
+                        </TextField>
+                      </Grid>
+                      <Grid size={{ xs: 4, md: 3 }}>
+                        <DecimalField
+                          label="Unit price"
+                          value={settings.unitPrice}
+                          onChange={(value) => updateGroupSettings(groupIndex, { unitPrice: value })}
+                          onFocus={selectOnFocus}
+                          helperText="Applies to every line in this group"
+                          fullWidth
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 4, md: 3 }}>
+                        <TextField
+                          label="VAT"
+                          select
+                          value={settings.vatRate}
+                          onChange={(e) =>
+                            updateGroupSettings(groupIndex, { vatRate: Number(e.target.value) })
+                          }
+                          helperText="Applies to every line in this group"
+                          fullWidth
+                        >
+                          {[...new Set([settings.vatRate, ...VAT_RATES])]
+                            .sort((a, b) => a - b)
+                            .map((rate) => (
+                              <MenuItem key={rate} value={rate}>
+                                {rate}%
+                              </MenuItem>
+                            ))}
+                        </TextField>
+                      </Grid>
                     </Grid>
-                    <Grid size={{ xs: 4, md: 3 }}>
-                      <TextField
-                        label="Unit price"
-                        type="number"
-                        value={settings.unitPrice}
-                        onChange={(e) =>
-                          updateGroupSettings(groupIndex, { unitPrice: Number(e.target.value) })
-                        }
-                        onFocus={selectOnFocus}
-                        helperText="Applies to every line in this group"
-                        fullWidth
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 4, md: 3 }}>
-                      <TextField
-                        label="VAT"
-                        select
-                        value={settings.vatRate}
-                        onChange={(e) =>
-                          updateGroupSettings(groupIndex, { vatRate: Number(e.target.value) })
-                        }
-                        helperText="Applies to every line in this group"
-                        fullWidth
-                      >
-                        {[...new Set([settings.vatRate, ...VAT_RATES])]
-                          .sort((a, b) => a - b)
-                          .map((rate) => (
-                            <MenuItem key={rate} value={rate}>
-                              {rate}%
-                            </MenuItem>
-                          ))}
-                      </TextField>
-                    </Grid>
-                  </Grid>
+                  )}
 
                   <Grid
                     container
                     spacing={1.5}
                     sx={{ display: { xs: 'none', sm: 'flex' }, px: 0.5, mb: 0.5 }}
                   >
-                    <Grid size={{ sm: 6 }}>
+                    <Grid size={{ sm: group.simpleItems ? 8 : 6 }}>
                       <Typography
                         variant="caption"
                         color="text.secondary"
@@ -983,15 +1012,17 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                         Description
                       </Typography>
                     </Grid>
-                    <Grid size={{ sm: 2 }}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
-                      >
-                        Qty
-                      </Typography>
-                    </Grid>
+                    {!group.simpleItems && (
+                      <Grid size={{ sm: 2 }}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+                        >
+                          Qty
+                        </Typography>
+                      </Grid>
+                    )}
                     <Grid size={{ sm: 3 }} sx={{ textAlign: 'right' }}>
                       <Typography
                         variant="caption"
@@ -1007,7 +1038,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                   <Stack spacing={2} divider={<Divider flexItem />}>
                     {group.items.map((item, itemIndex) => (
                       <Grid container spacing={1.5} key={itemIndex} alignItems="center">
-                        <Grid size={{ xs: 12, sm: 6 }}>
+                        <Grid size={{ xs: 12, sm: group.simpleItems ? 8 : 6 }}>
                           <TextField
                             label="Description"
                             value={item.description}
@@ -1019,32 +1050,45 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                             fullWidth
                           />
                         </Grid>
-                        <Grid size={{ xs: 5, sm: 2 }}>
-                          <TextField
-                            label="Qty"
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(groupIndex, itemIndex, {
-                                quantity: Number(e.target.value),
-                              })
-                            }
-                            onFocus={selectOnFocus}
-                            fullWidth
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 5, sm: 3 }} sx={{ textAlign: 'right' }}>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            sx={{ display: { xs: 'block', sm: 'none' } }}
-                          >
-                            Amount
-                          </Typography>
-                          <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                            {formatMoney(lineAmount(item, form.vatIncluded), form.currency)}
-                          </Typography>
-                        </Grid>
+                        {group.simpleItems ? (
+                          <Grid size={{ xs: 10, sm: 3 }}>
+                            <DecimalField
+                              label="Amount"
+                              value={item.unitPrice}
+                              onChange={(value) =>
+                                updateItem(groupIndex, itemIndex, { unitPrice: value })
+                              }
+                              onFocus={selectOnFocus}
+                              fullWidth
+                            />
+                          </Grid>
+                        ) : (
+                          <>
+                            <Grid size={{ xs: 5, sm: 2 }}>
+                              <DecimalField
+                                label="Qty"
+                                value={item.quantity}
+                                onChange={(value) =>
+                                  updateItem(groupIndex, itemIndex, { quantity: value })
+                                }
+                                onFocus={selectOnFocus}
+                                fullWidth
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 5, sm: 3 }} sx={{ textAlign: 'right' }}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: { xs: 'block', sm: 'none' } }}
+                              >
+                                Amount
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                                {formatMoney(lineAmount(item, form.vatIncluded), form.currency)}
+                              </Typography>
+                            </Grid>
+                          </>
+                        )}
                         <Grid size={{ xs: 2, sm: 1 }} sx={{ textAlign: 'right' }}>
                           <IconButton
                             onClick={() =>
@@ -1073,7 +1117,10 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
                       startIcon={<AddIcon />}
                       onClick={() =>
                         updateGroup(groupIndex, {
-                          items: [...group.items, { ...emptyItem(), ...settings }],
+                          items: [
+                            ...group.items,
+                            group.simpleItems ? emptySimpleItem() : { ...emptyItem(), ...settings },
+                          ],
                         })
                       }
                     >

@@ -11,7 +11,9 @@ import {
   DialogTitle,
   Divider,
   FormControlLabel,
+  IconButton,
   MenuItem,
+  Paper,
   Stack,
   Switch,
   TextField,
@@ -20,9 +22,12 @@ import {
   useTheme,
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { digitsOnly, fetcher, houseNumberChars, ibanChars, send, withoutDigits } from '@/lib/client';
+import { DecimalField } from './ui';
 import {
   CURRENCIES,
   QR_LANGUAGES,
@@ -32,7 +37,14 @@ import {
   normalizeIban,
   type QrLanguage,
 } from '@/lib/qrbill';
-import { VAT_RATES } from '@/lib/totals';
+import { UNIT_SUGGESTIONS, VAT_RATES } from '@/lib/totals';
+
+export interface PresetLineGroup {
+  name: string;
+  unit: string;
+  unitPrice: number;
+  vatRate: number;
+}
 
 export interface PresetRecord {
   _id?: string;
@@ -66,6 +78,7 @@ export interface PresetRecord {
   footerNote: string;
   emailSubject: string;
   emailBody: string;
+  lineGroups: PresetLineGroup[];
 }
 
 export const blankPreset = (): PresetRecord => ({
@@ -94,6 +107,7 @@ export const blankPreset = (): PresetRecord => ({
   emailSubject: 'Invoice {{number}} from {{creditor}}',
   emailBody:
     'Dear {{client}},\n\nPlease find invoice {{number}} attached, for {{total}}, due on {{dueDate}}.\n\nKind regards,\n{{creditor}}',
+  lineGroups: [],
 });
 
 export default function PresetDialog({
@@ -128,6 +142,36 @@ export default function PresetDialog({
   }, [open, preset, settings]);
 
   const update = (patch: Partial<PresetRecord>) => setForm((current) => ({ ...current, ...patch }));
+
+  // Every invoice created from this preset starts with one group per entry
+  // here, each pre-filled with its own unit, price and VAT rate - an "Extra"
+  // group (no unit/price/VAT, just a description and amount) is always
+  // offered on top, so it's not something a preset needs to define.
+  // These read the array from the functional setState updater rather than
+  // the `form` closure - with the closure, several fast keystrokes fired
+  // before a re-render each computed their patch against the same stale
+  // array, so quick typing silently dropped or corrupted edits.
+  const addLineGroup = () =>
+    setForm((current) => ({
+      ...current,
+      lineGroups: [
+        ...current.lineGroups,
+        { name: '', unit: 'pcs', unitPrice: 0, vatRate: current.defaultVatRate },
+      ],
+    }));
+
+  const updateLineGroup = (index: number, patch: Partial<PresetLineGroup>) =>
+    setForm((current) => ({
+      ...current,
+      lineGroups: current.lineGroups.map((group, i) => (i === index ? { ...group, ...patch } : group)),
+    }));
+
+  const removeLineGroup = (index: number) =>
+    setForm((current) => ({
+      ...current,
+      lineGroups: current.lineGroups.filter((_, i) => i !== index),
+    }));
+
   const updateAddress = (patch: Partial<PresetRecord['creditor']['address']>) =>
     setForm((current) => ({
       ...current,
@@ -484,6 +528,93 @@ export default function PresetDialog({
           </Grid>
 
           <Divider textAlign="left">
+            <Typography variant="overline">Line item groups</Typography>
+          </Divider>
+
+          <Stack spacing={1.5}>
+            <Typography variant="body2" color="text.secondary">
+              Every invoice from this preset starts with one line-item group per entry below, each
+              with its own unit, price and VAT rate already set - so all that's left is a
+              description and a quantity. An &quot;Extra&quot; group (just a description and an
+              amount, no VAT) is always offered too, for anything that doesn&apos;t fit.
+            </Typography>
+
+            <Stack spacing={1.5}>
+              {form.lineGroups.map((group, index) => (
+                <Paper key={index} variant="outlined" sx={{ p: 1.5 }}>
+                  <Grid container spacing={1.5} alignItems="center">
+                    <Grid size={{ xs: 12, sm: 5 }}>
+                      <TextField
+                        label="Group name"
+                        placeholder="e.g. Consulting"
+                        value={group.name}
+                        onChange={(e) => updateLineGroup(index, { name: e.target.value })}
+                        fullWidth
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 4, sm: 2 }}>
+                      <TextField
+                        select
+                        label="Unit"
+                        value={group.unit}
+                        onChange={(e) => updateLineGroup(index, { unit: e.target.value })}
+                        fullWidth
+                      >
+                        {[...new Set([group.unit, ...UNIT_SUGGESTIONS])]
+                          .filter(Boolean)
+                          .map((unit) => (
+                            <MenuItem key={unit} value={unit}>
+                              {unit}
+                            </MenuItem>
+                          ))}
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 4, sm: 2 }}>
+                      <DecimalField
+                        label="Unit price"
+                        value={group.unitPrice}
+                        onChange={(value) => updateLineGroup(index, { unitPrice: value })}
+                        fullWidth
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 3, sm: 2 }}>
+                      <TextField
+                        select
+                        label="VAT"
+                        value={group.vatRate}
+                        onChange={(e) => updateLineGroup(index, { vatRate: Number(e.target.value) })}
+                        fullWidth
+                      >
+                        {[...new Set([group.vatRate, ...VAT_RATES])]
+                          .sort((a, b) => a - b)
+                          .map((rate) => (
+                            <MenuItem key={rate} value={rate}>
+                              {rate}%
+                            </MenuItem>
+                          ))}
+                      </TextField>
+                    </Grid>
+                    <Grid size={{ xs: 1 }} sx={{ textAlign: 'right' }}>
+                      <IconButton onClick={() => removeLineGroup(index)} aria-label="Remove group">
+                        <DeleteOutlineIcon />
+                      </IconButton>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              ))}
+            </Stack>
+
+            <Button
+              startIcon={<AddIcon />}
+              variant="outlined"
+              onClick={addLineGroup}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Add group
+            </Button>
+          </Stack>
+
+          <Divider textAlign="left">
             <Typography variant="overline">Email template</Typography>
           </Divider>
 
@@ -511,7 +642,14 @@ export default function PresetDialog({
         <Button
           variant="contained"
           onClick={save}
-          disabled={busy || !form.name || !form.creditor.name || !ibanValid || !form.iban}
+          disabled={
+            busy ||
+            !form.name ||
+            !form.creditor.name ||
+            !ibanValid ||
+            !form.iban ||
+            form.lineGroups.some((group) => !group.name.trim())
+          }
         >
           {busy ? 'Saving...' : 'Save preset'}
         </Button>
