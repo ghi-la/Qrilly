@@ -38,6 +38,11 @@ export interface UserDoc {
   emailVerificationTokenHash?: string;
   emailVerificationExpires?: Date;
   emailVerificationSentAt?: Date;
+  passwordResetTokenHash?: string;
+  passwordResetExpires?: Date;
+  passwordResetSentAt?: Date;
+  /** Bumped on a password change; sessions issued under an older value are void. */
+  tokenVersion?: number;
   locale?: string;
   /** App-wide language; also the default language for newly created presets. */
   language: QrLanguage;
@@ -115,6 +120,10 @@ export interface InvoiceDoc {
   sentAt?: Date;
   sentTo: string[];
   paidAt?: Date;
+  /** Set while the invoice sits in the trash; it is purged for good after TRASH_DAYS. */
+  deletedAt?: Date | null;
+  /** Hours handed back to "unbilled" when the invoice was trashed, so a restore can re-bill them. */
+  releasedEntryIds?: mongoose.Types.ObjectId[];
   encVersion: number;
 }
 
@@ -208,6 +217,10 @@ const UserSchema = new Schema<UserDoc>(
     emailVerificationTokenHash: String,
     emailVerificationExpires: Date,
     emailVerificationSentAt: Date,
+    passwordResetTokenHash: String,
+    passwordResetExpires: Date,
+    passwordResetSentAt: Date,
+    tokenVersion: { type: Number, default: 0 },
 
     locale: { type: String, default: 'en-CH' },
     language: { type: String, enum: ['DE', 'FR', 'IT', 'EN'], default: 'EN' },
@@ -328,6 +341,8 @@ const InvoiceSchema = new Schema<InvoiceDoc>(
     sentAt: Date,
     sentTo: { type: [String], default: [] },
     paidAt: Date,
+    deletedAt: { type: Date, default: null },
+    releasedEntryIds: { type: [Schema.Types.ObjectId], default: [] },
 
     encVersion: { type: Number, default: 0 },
   },
@@ -336,6 +351,7 @@ const InvoiceSchema = new Schema<InvoiceDoc>(
 
 InvoiceSchema.index({ userId: 1, number: 1 }, { unique: true });
 InvoiceSchema.index({ userId: 1, issueDate: -1 });
+InvoiceSchema.index({ userId: 1, deletedAt: 1 });
 
 const WorkEntrySchema = new Schema<WorkEntryDoc>(
   {

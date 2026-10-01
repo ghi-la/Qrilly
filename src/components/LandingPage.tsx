@@ -15,6 +15,7 @@ import QrCode2Icon from '@mui/icons-material/QrCode2';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import LegalLinks from '@/components/LegalLinks';
 
 export default function LandingPage({ registrationOpen }: { registrationOpen: boolean }) {
   const { t } = useTranslation();
@@ -83,6 +84,7 @@ export default function LandingPage({ registrationOpen }: { registrationOpen: bo
             </Card>
           ))}
         </Stack>
+        <LegalLinks sx={{ mt: 8 }} />
       </Container>
     </Box>
   );

@@ -1,6 +1,7 @@
 import type { Types } from 'mongoose';
 import { HttpError } from './api';
-import { FileAsset, Invoice, Preset, type InvoiceDoc } from './models';
+import { FileAsset, Invoice, Preset, WorkEntry, type InvoiceDoc } from './models';
+import { TRASH_MS } from './trash';
 import {
   INVOICE_ENCRYPTED_PATHS,
   decryptDoc,
@@ -40,69 +41,85 @@ export async function buildInvoiceDoc(
 
   const iban = normalizeIban(preset.iban);
   if (!isSwissIban(iban)) {
-    throw new HttpError(400, 'The preset holds an IBAN that is not a valid Swiss or Liechtenstein account.');
+    throw new HttpError(400, 'This preset has no valid Swiss or Liechtenstein IBAN yet. Add your real IBAN under Settings > Presets.');
   }
-
-  const referenceType = input.referenceType ?? preset.referenceType;
-  const number = input.number?.trim() || (await nextInvoiceNumber(userId, preset._id));
-
-  // QRR references are numeric, so the invoice number's digits are the natural
-  // seed when the user hasn't supplied their own key.
-  const seed = input.referenceKey?.trim() || number.replace(/\D/g, '') || String(Date.now());
-  const { reference, errorCode } = deriveReference(referenceType, iban, seed);
-  if (errorCode) throw new HttpError(400, REFERENCE_ERROR_MESSAGES[errorCode]);
-
-  const totals = computeTotals(input.groups, {
-    vatIncluded: input.vatIncluded,
-    discountPercent: input.discountPercent,
-    roundTo5Cents: input.roundTo5Cents,
-  });
 
   if (input.dueDate < input.issueDate) {
     throw new HttpError(400, 'The due date cannot be before the invoice date.');
   }
 
-  return {
-    userId,
-    presetId: preset._id,
-    clientId: input.clientId || null,
-    number,
-    status: input.status ?? (existing?.status as string) ?? 'draft',
-    issueDate: input.issueDate,
-    dueDate: input.dueDate,
-    creditor: preset.creditor,
-    debtor: input.debtor,
-    iban,
-    vatNumber: preset.vatNumber ?? '',
-    logoFileId: preset.logoFileId ?? null,
-    footerNote: preset.footerNote ?? '',
-    referenceType,
-    reference,
-    currency: input.currency ?? preset.currency,
-    qrLanguage: input.qrLanguage ?? preset.qrLanguage,
-    groups: input.groups,
-    vatIncluded: input.vatIncluded,
-    discountPercent: input.discountPercent,
-    roundTo5Cents: input.roundTo5Cents,
-    message: input.message,
-    notes: input.notes,
-    totals: { net: totals.net, vatTotal: totals.vatTotal, total: totals.total },
-  };
+  const referenceType = input.referenceType ?? preset.referenceType;
+  const allocated = input.number?.trim() ? null : await nextInvoiceNumber(userId, preset._id);
+
+  try {
+    const number = input.number?.trim() || allocated!.number;
+
+    // QRR references are numeric, so the invoice number's digits are the natural
+    // seed when the user hasn't supplied their own key.
+    const seed = input.referenceKey?.trim() || number.replace(/\D/g, '') || String(Date.now());
+    const { reference, errorCode } = deriveReference(referenceType, iban, seed);
+    if (errorCode) throw new HttpError(400, REFERENCE_ERROR_MESSAGES[errorCode]);
+
+    const totals = computeTotals(input.groups, {
+      vatIncluded: input.vatIncluded,
+      discountPercent: input.discountPercent,
+      roundTo5Cents: input.roundTo5Cents,
+    });
+
+    return {
+      userId,
+      presetId: preset._id,
+      clientId: input.clientId || null,
+      number,
+      status: input.status ?? (existing?.status as string) ?? 'draft',
+      issueDate: input.issueDate,
+      dueDate: input.dueDate,
+      creditor: preset.creditor,
+      debtor: input.debtor,
+      iban,
+      vatNumber: preset.vatNumber ?? '',
+      logoFileId: preset.logoFileId ?? null,
+      footerNote: preset.footerNote ?? '',
+      referenceType,
+      reference,
+      currency: input.currency ?? preset.currency,
+      qrLanguage: input.qrLanguage ?? preset.qrLanguage,
+      groups: input.groups,
+      vatIncluded: input.vatIncluded,
+      discountPercent: input.discountPercent,
+      roundTo5Cents: input.roundTo5Cents,
+      message: input.message,
+      notes: input.notes,
+      totals: { net: totals.net, vatTotal: totals.vatTotal, total: totals.total },
+    };
+  } catch (err) {
+    // Hand the number back so a rejected request doesn't leave a gap.
+    if (allocated) await releaseInvoiceNumber(userId, preset._id, allocated.seq);
+    throw err;
+  }
 }
 
 /**
  * Reserves the next number on the preset. `findOneAndUpdate` with `$inc` is
  * atomic, so two invoices created at the same moment can't claim the same one.
  */
-async function nextInvoiceNumber(userId: Types.ObjectId, presetId: unknown): Promise<string> {
+async function nextInvoiceNumber(userId: Types.ObjectId, presetId: unknown) {
   const preset = await Preset.findOneAndUpdate(
     { _id: presetId, userId },
     { $inc: { nextNumber: 1 } },
     { new: false },
   ).lean();
   if (!preset) throw new HttpError(404, 'That preset no longer exists.');
-  const seq = String(preset.nextNumber ?? 1).padStart(4, '0');
-  return `${preset.invoicePrefix ?? ''}${seq}`;
+  const seq = preset.nextNumber ?? 1;
+  return { seq, number: `${preset.invoicePrefix ?? ''}${String(seq).padStart(4, '0')}` };
+}
+
+/**
+ * Undoes `nextInvoiceNumber`, but only if nobody has taken a later number in
+ * the meantime - otherwise the gap stays rather than risking a duplicate.
+ */
+export async function releaseInvoiceNumber(userId: Types.ObjectId, presetId: unknown, seq: number) {
+  await Preset.updateOne({ _id: presetId, userId, nextNumber: seq + 1 }, { $inc: { nextNumber: -1 } });
 }
 
 export async function encryptInvoice(userId: Types.ObjectId, doc: Record<string, unknown>) {
@@ -121,10 +138,26 @@ export async function loadInvoice(
   userId: Types.ObjectId,
   invoiceId: Types.ObjectId,
 ): Promise<InvoiceDoc> {
-  const doc = await Invoice.findOne({ _id: invoiceId, userId }).lean();
+  const doc = await Invoice.findOne({ _id: invoiceId, userId, deletedAt: null }).lean();
   if (!doc) throw new HttpError(404, 'Invoice not found.');
   const [decrypted] = await decryptInvoices(userId, [doc as Record<string, unknown>]);
   return decrypted as unknown as InvoiceDoc;
+}
+
+/** Removes invoices (and the hours they billed) for good. */
+export async function deleteInvoicesForever(userId: Types.ObjectId, ids: unknown[]) {
+  if (ids.length === 0) return;
+  await WorkEntry.deleteMany({ userId, billed: true, invoiceId: { $in: ids } });
+  await Invoice.deleteMany({ userId, _id: { $in: ids } });
+}
+
+/** Lazily empties the trash: anything deleted more than TRASH_DAYS ago goes for good. */
+export async function purgeExpiredInvoices(userId: Types.ObjectId) {
+  const expired = await Invoice.distinct('_id', {
+    userId,
+    deletedAt: { $ne: null, $lt: new Date(Date.now() - TRASH_MS) },
+  });
+  await deleteInvoicesForever(userId, expired);
 }
 
 /** Rebuilds the PDF from the stored record. Nothing is cached or persisted. */

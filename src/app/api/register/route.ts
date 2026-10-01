@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { connectDB } from '@/lib/db';
 import { Preset, User } from '@/lib/models';
 import { HttpError, ok, route } from '@/lib/api';
-import { isDisposableEmail, isValidEmail } from '@/lib/validation';
+import { isDisposableEmail, isValidEmail, passwordProblem } from '@/lib/validation';
 import { sendVerificationEmail } from '@/lib/email';
 import { createVerificationToken, VERIFICATION_TOKEN_TTL_MS } from '@/lib/verification';
 import { generateDekWrappedForNewUser } from '@/lib/serverCrypto';
@@ -30,9 +30,8 @@ export const POST = route(async (req: Request) => {
       'Temporary/disposable email addresses are not allowed. Please use a permanent email address.',
     );
   }
-  if (String(password ?? '').length < 8) {
-    throw new HttpError(400, 'Passwords need at least 8 characters.');
-  }
+  const problem = passwordProblem(String(password ?? ''));
+  if (problem) throw new HttpError(400, problem);
 
   await connectDB();
   if (await User.findOne({ email: cleanEmail })) {

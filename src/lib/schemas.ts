@@ -104,7 +104,7 @@ export const workEntrySchema = z.object({
   presetId: z.string().min(1, 'Pick a preset.'),
   clientId: z.string().min(1, 'Pick a client.'),
   groupName: trimmed(60).min(1, 'Pick a group.'),
-  quantity: z.number().finite(),
+  quantity: z.number().finite().gt(0, 'Enter a quantity greater than zero.').max(1_000_000),
   note: trimmed(500).default(''),
   entryDate: z.coerce.date(),
 });

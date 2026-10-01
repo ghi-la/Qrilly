@@ -1,6 +1,13 @@
 import disposableDomains from 'disposable-email-domains';
 import disposableWildcards from 'disposable-email-domains/wildcard.json';
 
+/** bcrypt silently ignores everything past 72 bytes, so longer passwords are refused rather than truncated. */
+export function passwordProblem(password: string): string | null {
+  if (password.length < 8) return 'Passwords need at least 8 characters.';
+  if (Buffer.byteLength(password) > 72) return 'Passwords can be at most 72 characters long.';
+  return null;
+}
+
 export function isValidEmail(email: string): boolean {
   if (/\s/.test(email)) return false;
   const at = email.indexOf('@');

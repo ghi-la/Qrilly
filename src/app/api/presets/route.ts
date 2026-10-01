@@ -1,6 +1,7 @@
 import { Preset } from '@/lib/models';
 import { HttpError, ok, requireUser, route } from '@/lib/api';
 import { firstIssue, presetSchema } from '@/lib/schemas';
+import { assertOwnLogo, purgeUnusedLogos } from '@/lib/files';
 import { isSwissIban, normalizeIban } from '@/lib/qrbill';
 
 export const runtime = 'nodejs';
@@ -20,9 +21,12 @@ export const POST = route(async (req: Request) => {
   const iban = normalizeIban(data.iban);
   if (!isSwissIban(iban)) throw new HttpError(400, 'Enter a valid Swiss or Liechtenstein IBAN.');
 
+  await assertOwnLogo(userId, data.logoFileId);
+
   // Exactly one preset is the default, so setting a new one clears the rest.
   if (data.isDefault) await Preset.updateMany({ userId }, { $set: { isDefault: false } });
 
   const preset = await Preset.create({ ...data, iban, userId });
+  await purgeUnusedLogos(userId);
   return ok(preset, 201);
 });

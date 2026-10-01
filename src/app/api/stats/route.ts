@@ -13,7 +13,7 @@ export const GET = route(async () => {
   const userId = await requireUser();
 
   const rows = await Invoice.aggregate([
-    { $match: { userId } },
+    { $match: { userId, deletedAt: null } },
     {
       $group: {
         _id: { status: '$status', currency: '$currency' },
@@ -25,7 +25,7 @@ export const GET = route(async () => {
 
   const now = new Date();
   const overdue = await Invoice.aggregate([
-    { $match: { userId, status: 'sent', dueDate: { $lt: now } } },
+    { $match: { userId, deletedAt: null, status: 'sent', dueDate: { $lt: now } } },
     { $group: { _id: '$currency', count: { $sum: 1 }, total: { $sum: '$totals.total' } } },
   ]);
 

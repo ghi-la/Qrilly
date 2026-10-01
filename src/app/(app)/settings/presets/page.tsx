@@ -29,18 +29,21 @@ export default function PresetsPage() {
   const { data, isLoading, mutate } = useSWR<PresetRecord[]>('/api/presets', fetcher);
   const [editing, setEditing] = useState<PresetRecord | null>(null);
   const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<PresetRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const remove = async () => {
     if (!pendingDelete?._id) return;
     setError(null);
+    setDeleting(true);
     try {
       await send(`/api/presets/${pendingDelete._id}`, 'DELETE');
       void mutate();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('presets.couldNotBeDeleted'));
     } finally {
+      setDeleting(false);
       setPendingDelete(null);
     }
   };
@@ -141,6 +144,7 @@ export default function PresetsPage() {
         onSaved={() => mutate()}
       />
       <ConfirmDialog
+        busy={deleting}
         open={Boolean(pendingDelete)}
         title={t('presets.deleteConfirmTitle')}
         message={t('presets.deleteConfirmMessage')}

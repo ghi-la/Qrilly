@@ -9,6 +9,7 @@ import {
   Card,
   CardContent,
   Checkbox,
+  CircularProgress,
   Divider,
   IconButton,
   MenuItem,
@@ -163,6 +164,9 @@ export default function EntriesPage() {
       entryDate: toDateInput(new Date()),
     }));
 
+  const [deleting, setDeleting] = useState(false);
+  const [navigating, setNavigating] = useState(false);
+
   const submitEntry = async () => {
     setEntryError(null);
     setEntryBusy(true);
@@ -208,9 +212,14 @@ export default function EntriesPage() {
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
-    await send(`/api/entries/${pendingDelete._id}`, 'DELETE');
-    setPendingDelete(null);
-    void mutate();
+    setDeleting(true);
+    try {
+      await send(`/api/entries/${pendingDelete._id}`, 'DELETE');
+      setPendingDelete(null);
+      void mutate();
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const toggleSelect = (id: string) =>
@@ -230,6 +239,7 @@ export default function EntriesPage() {
     });
 
   const createInvoiceFrom = (ids: string[]) => {
+    setNavigating(true);
     router.push(`/invoices/new?fromEntries=${ids.join(',')}`);
   };
 
@@ -511,7 +521,8 @@ export default function EntriesPage() {
                         </Button>
                         <Button
                           variant="contained"
-                          disabled={selectedIds.length === 0}
+                          disabled={selectedIds.length === 0 || navigating}
+                          startIcon={navigating ? <CircularProgress size={16} color="inherit" /> : undefined}
                           onClick={() => createInvoiceFrom(selectedIds)}
                         >
                           {selectedIds.length > 0
@@ -587,6 +598,7 @@ export default function EntriesPage() {
       )}
 
       <ConfirmDialog
+        busy={deleting}
         open={Boolean(pendingDelete)}
         title={t('entries.deleteConfirmTitle')}
         message={t('entries.deleteConfirmMessage')}

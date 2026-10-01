@@ -97,6 +97,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  cancelLabel,
   busy,
   onClose,
   onConfirm,
@@ -105,6 +106,7 @@ export function ConfirmDialog({
   title: string;
   message: string;
   confirmLabel?: string;
+  cancelLabel?: string;
   busy?: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -117,8 +119,14 @@ export function ConfirmDialog({
         <DialogContentText>{message}</DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t('common.cancel')}</Button>
-        <Button color="error" variant="contained" onClick={onConfirm} disabled={busy}>
+        <Button onClick={onClose} disabled={busy}>{cancelLabel ?? t('common.cancel')}</Button>
+        <Button
+          color="error"
+          variant="contained"
+          onClick={onConfirm}
+          disabled={busy}
+          startIcon={busy ? <CircularProgress size={16} color="inherit" /> : undefined}
+        >
           {confirmLabel ?? t('common.delete')}
         </Button>
       </DialogActions>

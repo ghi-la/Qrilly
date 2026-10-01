@@ -34,7 +34,13 @@ export function route<T extends unknown[]>(
       }
       // Mongo's duplicate-key error is the only 500 that's really a conflict.
       if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
-        return NextResponse.json({ error: 'That invoice number is already used.' }, { status: 409 });
+        const keys = Object.keys((err as { keyPattern?: Record<string, unknown> }).keyPattern ?? {});
+        const message = keys.includes('number')
+          ? 'That invoice number is already used.'
+          : keys.includes('email')
+            ? 'That email is already registered. Sign in instead.'
+            : 'That record already exists.';
+        return NextResponse.json({ error: message }, { status: 409 });
       }
       const message = err instanceof Error ? err.message : 'Something went wrong.';
       console.error(err);
@@ -44,6 +50,11 @@ export function route<T extends unknown[]>(
 }
 
 export const ok = (data: unknown, status = 200) => NextResponse.json(data, { status });
+
+/** Parses a list of ids, rejecting the whole request if any one is malformed. */
+export function requireOids(values: unknown[], label = 'record') {
+  return values.map((value) => requireOid(value, label));
+}
 
 export function oid(value: unknown) {
   if (!value || !mongoose.Types.ObjectId.isValid(String(value))) return null;

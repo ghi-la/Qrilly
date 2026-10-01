@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Card, CardContent, Stack, Typography } from '@mui/material';
+import { Alert, Button, Card, CardContent, Stack, Typography } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddIcon from '@mui/icons-material/Add';
@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import InvoiceCard, { type InvoiceCardData } from '@/components/InvoiceCard';
 import { fetcher, formatMoney } from '@/lib/client';
+import { isSwissIban } from '@/lib/qrbill';
 import { EmptyState, Loading, PageHeader } from '@/components/ui';
 
 interface StatusRow {
@@ -25,6 +26,8 @@ export default function DashboardPage() {
     overdue: StatusRow[];
     unbilledEntries: { count: number; clientCount: number };
   }>('/api/stats', fetcher);
+  const { data: presets } = useSWR<{ _id: string; iban: string; isDefault: boolean }[]>('/api/presets', fetcher);
+  const needsIban = presets !== undefined && presets.length > 0 && !presets.some((p) => isSwissIban(p.iban));
   const {
     data: invoices,
     isLoading,
@@ -77,6 +80,16 @@ export default function DashboardPage() {
           </Stack>
         }
       />
+
+      {needsIban && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 3 }}
+          action={<Button component={Link} href="/settings/presets">{t('invoiceEditor.ibanMissingAction')}</Button>}
+        >
+          {t('invoiceEditor.ibanMissingTitle')}
+        </Alert>
+      )}
 
       <Grid container spacing={2} sx={{ mb: 4 }}>
         {cards.map((card) => (

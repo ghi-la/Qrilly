@@ -19,8 +19,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import LegalLinks from '@/components/LegalLinks';
 
 type Mode = 'login' | 'register';
 
@@ -34,7 +35,15 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(
-    mode === 'login' && searchParams.get('registered') ? t('auth.registeredNotice') : null,
+    mode !== 'login'
+      ? null
+      : searchParams.get('registered')
+        ? t('auth.registeredNotice')
+        : searchParams.get('passwordChanged')
+          ? t('auth.passwordChangedNotice')
+          : searchParams.get('expired')
+            ? t('auth.sessionExpired')
+            : null,
   );
   const [busy, setBusy] = useState(false);
 
@@ -105,7 +114,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
           <Box component="form" onSubmit={submit}>
             <Stack spacing={2}>
               {error && <Alert severity="error">{error}</Alert>}
-              {notice && <Alert severity="success">{notice}</Alert>}
+              {notice && <Alert severity={searchParams.get('expired') ? 'info' : 'success'}>{notice}</Alert>}
 
               {isRegister && (
                 <TextField
@@ -138,6 +147,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
               />
 
               {!isRegister && (
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -148,6 +158,22 @@ export default function AuthForm({ mode }: { mode: Mode }) {
                   }
                   label={t('auth.rememberMe')}
                 />
+                <MuiLink component={Link} href="/forgot-password" variant="body2">
+                  {t('auth.forgotPassword')}
+                </MuiLink>
+                </Stack>
+              )}
+
+              {isRegister && (
+                <Typography variant="caption" color="text.secondary">
+                  <Trans
+                    i18nKey="auth.agreeNote"
+                    components={{
+                      terms: <MuiLink component={Link} href="/terms" />,
+                      privacy: <MuiLink component={Link} href="/privacy" />,
+                    }}
+                  />
+                </Typography>
               )}
 
               <Button type="submit" variant="contained" size="large" disabled={busy}>
@@ -175,6 +201,7 @@ export default function AuthForm({ mode }: { mode: Mode }) {
           </Box>
         </CardContent>
       </Card>
+      <LegalLinks sx={{ mt: 3 }} />
     </Container>
   );
 }

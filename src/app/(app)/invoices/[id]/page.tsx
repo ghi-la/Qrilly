@@ -1,6 +1,7 @@
 'use client';
 
-import { Button, Chip, Stack } from '@mui/material';
+import { Alert, Button, Chip, CircularProgress, Stack } from '@mui/material';
+import BlockIcon from '@mui/icons-material/Block';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DownloadIcon from '@mui/icons-material/Download';
 import SendIcon from '@mui/icons-material/Send';
@@ -12,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import InvoiceEditor from '@/components/InvoiceEditor';
 import SendInvoiceDialog from '@/components/SendInvoiceDialog';
+import DeleteInvoiceDialog, { type DeleteChoices } from '@/components/DeleteInvoiceDialog';
 import { ConfirmDialog, Loading, PageHeader } from '@/components/ui';
 import { fetcher, send } from '@/lib/client';
 
@@ -30,6 +32,8 @@ export default function InvoicePage() {
   const [sendOpen, setSendOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const STATUS_LABEL: Record<string, string> = {
     draft: t('invoices.statusLabel.draft'),
@@ -41,18 +45,38 @@ export default function InvoicePage() {
   if (isLoading || !invoice) return <Loading label={t('invoices.loadingInvoice')} />;
 
   const markPaid = async () => {
-    await send(`/api/invoices/${id}`, 'PATCH', { status: 'paid' });
-    void mutate();
+    setPaying(true);
+    try {
+      await send(`/api/invoices/${id}`, 'PATCH', { status: 'paid' });
+      await mutate();
+    } finally {
+      setPaying(false);
+    }
   };
 
-  const remove = async () => {
+  const cancelInvoice = async () => {
     setBusy(true);
     try {
-      await send(`/api/invoices/${id}`, 'DELETE');
-      router.push('/invoices');
-      router.refresh();
+      await send(`/api/invoices/${id}`, 'PATCH', { status: 'canceled' });
+      setCancelOpen(false);
+      await mutate();
     } finally {
       setBusy(false);
+    }
+  };
+
+  const remove = async (choices: DeleteChoices) => {
+    setBusy(true);
+    try {
+      const result = await send(`/api/invoices/${id}`, 'DELETE', choices);
+      if (result.notified === false) {
+        window.alert(t('invoices.notifyFailed', { error: result.notifyError }));
+      }
+      router.push('/invoices');
+      router.refresh();
+    } catch (err) {
+      setBusy(false);
+      throw err;
     }
   };
 
@@ -86,25 +110,41 @@ export default function InvoicePage() {
         >
           {t('invoices.preview')}
         </Button>
-        <Button variant="outlined" startIcon={<SendIcon />} onClick={() => setSendOpen(true)}>
-          {t('invoices.email')}
-        </Button>
-        {invoice.status !== 'paid' && (
-          <Button variant="outlined" color="success" startIcon={<TaskAltIcon />} onClick={markPaid}>
+        {invoice.status !== 'canceled' && (
+          <Button variant="outlined" startIcon={<SendIcon />} onClick={() => setSendOpen(true)}>
+            {t('invoices.email')}
+          </Button>
+        )}
+        {(invoice.status === 'draft' || invoice.status === 'sent') && (
+          <Button variant="outlined" color="success" startIcon={paying ? <CircularProgress size={16} color="inherit" /> : <TaskAltIcon />}
+            onClick={markPaid}
+            disabled={paying}
+          >
             {t('invoices.markPaid')}
           </Button>
         )}
-        <Button
-          variant="outlined"
-          color="error"
-          startIcon={<DeleteOutlineIcon />}
-          onClick={() => setConfirmOpen(true)}
-        >
-          {t('invoices.delete')}
-        </Button>
+        {invoice.status !== 'paid' && (
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteOutlineIcon />}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {t('invoices.delete')}
+          </Button>
+        )}
+        {invoice.status === 'sent' && (
+          <Button variant="outlined" color="error" startIcon={<BlockIcon />} onClick={() => setCancelOpen(true)}>
+            {t('invoices.cancel')}
+          </Button>
+        )}
       </Stack>
 
-      <InvoiceEditor invoiceId={id} />
+      {invoice.status === 'draft' ? (
+        <InvoiceEditor invoiceId={id} />
+      ) : (
+        <Alert severity="info">{t('invoices.lockedNotice')}</Alert>
+      )}
 
       <SendInvoiceDialog
         open={sendOpen}
@@ -112,13 +152,22 @@ export default function InvoicePage() {
         onClose={() => setSendOpen(false)}
         onSent={() => mutate()}
       />
-      <ConfirmDialog
+      <DeleteInvoiceDialog
         open={confirmOpen}
-        title={t('invoices.deleteConfirmTitle')}
-        message={t('invoices.deleteConfirmMessage')}
+        invoice={invoice}
         busy={busy}
         onClose={() => setConfirmOpen(false)}
         onConfirm={remove}
+      />
+      <ConfirmDialog
+        open={cancelOpen}
+        title={t('invoices.cancelConfirmTitle')}
+        message={t('invoices.cancelConfirmMessage')}
+        confirmLabel={t('invoices.cancelConfirmLabel')}
+        cancelLabel={t('invoices.keepInvoice')}
+        busy={busy}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={cancelInvoice}
       />
     </>
   );

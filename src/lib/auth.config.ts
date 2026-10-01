@@ -37,6 +37,7 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         token.uid = user.id;
         token.remember = user.remember === true;
+        token.tv = user.tokenVersion ?? 0;
       }
       return token;
     },

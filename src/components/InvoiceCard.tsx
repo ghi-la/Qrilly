@@ -4,6 +4,7 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   IconButton,
   ListItemIcon,
   ListItemText,
@@ -12,6 +13,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import BlockIcon from '@mui/icons-material/Block';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DownloadIcon from '@mui/icons-material/Download';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -22,6 +24,7 @@ import Link from 'next/link';
 import { useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import SendInvoiceDialog from '@/components/SendInvoiceDialog';
+import DeleteInvoiceDialog, { type DeleteChoices } from '@/components/DeleteInvoiceDialog';
 import { ConfirmDialog } from '@/components/ui';
 import { formatDate, formatMoney, send } from '@/lib/client';
 
@@ -36,6 +39,8 @@ export interface InvoiceCardData {
   debtor: { name: string; email?: string };
   creditor: { name: string };
   totals: { total: number };
+  deletedAt?: string | null;
+  entryCount?: number;
 }
 
 const STATUS_COLOR: Record<string, 'default' | 'primary' | 'success' | 'warning'> = {
@@ -51,7 +56,7 @@ export default function InvoiceCard({
   showDueDate = true,
 }: {
   invoice: InvoiceCardData;
-  onChanged: () => void;
+  onChanged: () => void | Promise<unknown>;
   showDueDate?: boolean;
 }) {
   const { t } = useTranslation();
@@ -59,6 +64,8 @@ export default function InvoiceCard({
   const [sendOpen, setSendOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const overdue = invoice.status === 'sent' && new Date(invoice.dueDate) < new Date();
 
@@ -74,16 +81,35 @@ export default function InvoiceCard({
 
   const markPaid = async () => {
     closeMenu();
-    await send(`/api/invoices/${invoice._id}`, 'PATCH', { status: 'paid' });
-    onChanged();
+    setPaying(true);
+    try {
+      await send(`/api/invoices/${invoice._id}`, 'PATCH', { status: 'paid' });
+      await onChanged();
+    } finally {
+      setPaying(false);
+    }
   };
 
-  const remove = async () => {
+  const remove = async (choices: DeleteChoices) => {
     setBusy(true);
     try {
-      await send(`/api/invoices/${invoice._id}`, 'DELETE');
+      const result = await send(`/api/invoices/${invoice._id}`, 'DELETE', choices);
       setDeleteOpen(false);
+      if (result.notified === false) {
+        window.alert(t('invoices.notifyFailed', { error: result.notifyError }));
+      }
       onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelInvoice = async () => {
+    setBusy(true);
+    try {
+      await send(`/api/invoices/${invoice._id}`, 'PATCH', { status: 'canceled' });
+      setCancelOpen(false);
+      await onChanged();
     } finally {
       setBusy(false);
     }
@@ -100,6 +126,7 @@ export default function InvoiceCard({
       size="small"
       label={overdue ? t('invoices.statusLabel.overdue') : STATUS_LABEL[invoice.status] ?? invoice.status}
       color={overdue ? 'error' : STATUS_COLOR[invoice.status] ?? 'default'}
+      icon={paying ? <CircularProgress size={12} color="inherit" /> : undefined}
     />
   );
   const amount = (
@@ -171,18 +198,20 @@ export default function InvoiceCard({
           </ListItemIcon>
           <ListItemText>{t('invoices.preview')}</ListItemText>
         </MenuItem>
-        <MenuItem
-          onClick={() => {
-            closeMenu();
-            setSendOpen(true);
-          }}
-        >
-          <ListItemIcon>
-            <SendIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>{t('invoices.email')}</ListItemText>
-        </MenuItem>
-        {invoice.status !== 'paid' && (
+        {invoice.status !== 'canceled' && (
+          <MenuItem
+            onClick={() => {
+              closeMenu();
+              setSendOpen(true);
+            }}
+          >
+            <ListItemIcon>
+              <SendIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>{t('invoices.email')}</ListItemText>
+          </MenuItem>
+        )}
+        {(invoice.status === 'draft' || invoice.status === 'sent') && (
           <MenuItem onClick={markPaid}>
             <ListItemIcon>
               <TaskAltIcon fontSize="small" />
@@ -190,18 +219,34 @@ export default function InvoiceCard({
             <ListItemText>{t('invoices.markPaid')}</ListItemText>
           </MenuItem>
         )}
-        <MenuItem
-          onClick={() => {
-            closeMenu();
-            setDeleteOpen(true);
-          }}
-          sx={{ color: 'error.main' }}
-        >
-          <ListItemIcon>
-            <DeleteOutlineIcon fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText>{t('invoices.delete')}</ListItemText>
-        </MenuItem>
+        {invoice.status === 'sent' && (
+          <MenuItem
+            onClick={() => {
+              closeMenu();
+              setCancelOpen(true);
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon>
+              <BlockIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText>{t('invoices.cancel')}</ListItemText>
+          </MenuItem>
+        )}
+        {invoice.status !== 'paid' && (
+          <MenuItem
+            onClick={() => {
+              closeMenu();
+              setDeleteOpen(true);
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon>
+              <DeleteOutlineIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText>{t('invoices.delete')}</ListItemText>
+          </MenuItem>
+        )}
       </Menu>
 
       <SendInvoiceDialog
@@ -214,13 +259,23 @@ export default function InvoiceCard({
         }}
       />
 
-      <ConfirmDialog
+      <DeleteInvoiceDialog
         open={deleteOpen}
-        title={t('invoices.deleteConfirmTitle')}
-        message={t('invoices.deleteConfirmMessage')}
+        invoice={invoice}
         busy={busy}
         onClose={() => setDeleteOpen(false)}
         onConfirm={remove}
+      />
+
+      <ConfirmDialog
+        open={cancelOpen}
+        title={t('invoices.cancelConfirmTitle')}
+        message={t('invoices.cancelConfirmMessage')}
+        confirmLabel={t('invoices.cancelConfirmLabel')}
+        cancelLabel={t('invoices.keepInvoice')}
+        busy={busy}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={cancelInvoice}
       />
     </>
   );

@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 
 export const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+export const PASSWORD_RESET_COOLDOWN_MS = 60 * 1000;
 export const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
 
 /** Raw token goes in the emailed link; only its hash is ever persisted. */

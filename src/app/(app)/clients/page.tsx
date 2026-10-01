@@ -16,13 +16,19 @@ export default function ClientsPage() {
   const { data, isLoading, mutate } = useSWR<ClientRecord[]>('/api/clients', fetcher);
   const [editing, setEditing] = useState<ClientRecord | null>(null);
   const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ClientRecord | null>(null);
 
   const remove = async () => {
     if (!pendingDelete?._id) return;
-    await send(`/api/clients/${pendingDelete._id}`, 'DELETE');
-    setPendingDelete(null);
-    void mutate();
+    setDeleting(true);
+    try {
+      await send(`/api/clients/${pendingDelete._id}`, 'DELETE');
+      setPendingDelete(null);
+      void mutate();
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -101,6 +107,7 @@ export default function ClientsPage() {
         onSaved={() => mutate()}
       />
       <ConfirmDialog
+        busy={deleting}
         open={Boolean(pendingDelete)}
         title={t('clients.deleteConfirmTitle')}
         message={t('clients.deleteConfirmMessage')}

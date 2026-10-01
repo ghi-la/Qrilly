@@ -30,6 +30,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import SpaceDashboardIcon from '@mui/icons-material/SpaceDashboard';
 import Image from 'next/image';
 import Link from 'next/link';
+import NavigationProgress from './NavigationProgress';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useEffect, useState } from 'react';
@@ -198,6 +199,7 @@ export default function AppShell({
       >
         {children}
       </Box>
+      <NavigationProgress />
 
       <Paper
         elevation={3}

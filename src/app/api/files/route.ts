@@ -1,4 +1,5 @@
 import { FileAsset } from '@/lib/models';
+import { purgeUnusedLogos } from '@/lib/files';
 import { HttpError, ok, requireUser, route } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -27,6 +28,7 @@ export const POST = route(async (req: Request) => {
   // under an image label, so the magic bytes are checked too.
   if (!looksLikeImage(buffer)) throw new HttpError(400, 'That file is not a valid image.');
 
+  await purgeUnusedLogos(userId);
   const asset = await FileAsset.create({
     userId,
     name: file.name.slice(0, 120),

@@ -49,6 +49,7 @@ import {
   deriveReference,
   formatReference,
   isQrIban,
+  isSwissIban,
   type ReferenceType,
 } from '@/lib/qrbill';
 import {
@@ -400,6 +401,10 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
     [presets, form.presetId],
   );
 
+  // The starter preset ships with a placeholder IBAN; nothing can be issued
+  // until it's replaced with a real account.
+  const ibanMissing = Boolean(activePreset && !isSwissIban(activePreset.iban));
+
   function applyPreset(preset: Preset, seedDates = false) {
     setForm((current) => ({
       ...current,
@@ -631,6 +636,15 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
   return (
     <Stack spacing={3} sx={{ pb: { xs: `calc(96px + ${BOTTOM_BAR_HEIGHT}px)`, md: 12 } }}>
       <ErrorNote error={error} />
+
+      {ibanMissing && (
+        <Alert
+          severity="warning"
+          action={<Button href="/settings/presets">{t('invoiceEditor.ibanMissingAction')}</Button>}
+        >
+          {t('invoiceEditor.ibanMissingTitle')}
+        </Alert>
+      )}
 
       <Step
         title={t('invoiceEditor.steps.settings')}
@@ -1358,7 +1372,7 @@ export default function InvoiceEditor({ invoiceId }: { invoiceId?: string }) {
             variant="contained"
             size="large"
             onClick={save}
-            disabled={busy || Boolean(referenceError) || !form.debtor.name}
+            disabled={busy || ibanMissing || Boolean(referenceError) || !form.debtor.name}
           >
             {busy ? t('common.saving') : invoiceId ? t('invoiceEditor.saveChanges') : t('invoiceEditor.createInvoice')}
           </Button>

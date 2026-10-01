@@ -27,6 +27,7 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
   if (!parsed.success) throw new HttpError(400, firstIssue(parsed.error));
 
   const { pdf, invoice } = await renderInvoice(userId, id);
+  if (invoice.status === 'canceled') throw new HttpError(409, 'A canceled invoice cannot be sent.');
   const preset = await Preset.findOne({ _id: invoice.presetId, userId }).lean();
 
   await sendInvoiceEmail({

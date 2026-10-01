@@ -17,6 +17,21 @@ class TooManyAttemptsSignin extends CredentialsSignin {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt(args) {
+      const token = await authConfig.callbacks!.jwt!(args);
+      // Right after sign-in there's nothing to compare against yet.
+      if (args.user || !token?.uid) return token;
+
+      // Returning null voids the session: after a password change (or once the
+      // account is gone) every older token stops working on its next use.
+      await connectDB();
+      const current = await User.findById(token.uid).select({ tokenVersion: 1 }).lean();
+      if (!current || (current.tokenVersion ?? 0) !== (token.tv ?? 0)) return null;
+      return token;
+    },
+  },
   providers: [
     Credentials({
       credentials: { email: {}, password: {}, remember: {} },
@@ -51,6 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name ?? user.email,
           remember: credentials?.remember === 'true',
+          tokenVersion: user.tokenVersion ?? 0,
         };
       },
     }),

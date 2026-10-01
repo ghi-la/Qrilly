@@ -1,5 +1,6 @@
-import { WorkEntry } from '@/lib/models';
-import { HttpError, ok, requireUser, route } from '@/lib/api';
+import { Invoice, WorkEntry } from '@/lib/models';
+import { HttpError, ok, requireOids, requireUser, route } from '@/lib/api';
+import { purgeExpiredInvoices } from '@/lib/invoices';
 import { resolveWorkEntryFields } from '@/lib/entries';
 import { firstIssue, workEntrySchema } from '@/lib/schemas';
 import { WORK_ENTRY_ENCRYPTED_PATHS, decryptDoc, encryptDoc, getUserDek } from '@/lib/serverCrypto';
@@ -14,8 +15,14 @@ export const GET = route(async (req: Request) => {
   const query: Record<string, unknown> = { userId };
   if (idsParam) {
     const ids = idsParam.split(',').map((id) => id.trim()).filter(Boolean);
-    query._id = { $in: ids };
+    query._id = { $in: requireOids(ids, 'entry') };
   }
+
+  // Hours billed on an invoice that is in the trash stay out of sight until
+  // it is restored (or purged, which removes them).
+  await purgeExpiredInvoices(userId);
+  const trashed = await Invoice.distinct('_id', { userId, deletedAt: { $ne: null } });
+  if (trashed.length > 0) query.invoiceId = { $nin: trashed };
 
   const docs = await WorkEntry.find(query).sort({ entryDate: -1, createdAt: -1 }).lean();
   const dek = await getUserDek(userId);

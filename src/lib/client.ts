@@ -1,7 +1,15 @@
 'use client';
 
+/** A 401 mid-session means the login is no longer valid (expired, or the password changed elsewhere). */
+function handleExpiredSession(res: Response) {
+  if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login?expired=1';
+  }
+}
+
 export const fetcher = async (url: string) => {
   const res = await fetch(url);
+  handleExpiredSession(res);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? 'Request failed.');
@@ -19,6 +27,7 @@ export async function send(
     headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  handleExpiredSession(res);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? 'Request failed.');
   return data;

@@ -2,6 +2,7 @@
 
 import { Button, IconButton, MenuItem, Stack, TextField, Tooltip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import Link from 'next/link';
@@ -9,6 +10,8 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 import InvoiceCard, { type InvoiceCardData } from '@/components/InvoiceCard';
+import TrashedInvoiceCard from '@/components/TrashedInvoiceCard';
+import { TRASH_DAYS } from '@/lib/trash';
 import { fetcher } from '@/lib/client';
 import { EmptyState, Loading, PageHeader } from '@/components/ui';
 
@@ -58,11 +61,23 @@ export default function InvoicesPage() {
     sent: t('invoices.statusLabel.sent'),
     paid: t('invoices.statusLabel.paid'),
     canceled: t('invoices.statusLabel.canceled'),
+    trash: t('invoices.trash'),
   };
 
-  const params = new URLSearchParams({ status });
+  const [showTrash, setShowTrash] = useState(false);
+  const params = new URLSearchParams({ status: showTrash ? 'trash' : status });
   if (search) params.set('q', search);
-  const { data, isLoading, mutate } = useSWR<InvoiceCardData[]>(`/api/invoices?${params}`, fetcher);
+  const { data, isLoading, mutate: mutateList } = useSWR<InvoiceCardData[]>(`/api/invoices?${params}`, fetcher);
+  const { data: trashInfo, mutate: mutateTrash } = useSWR<{ count: number }>(
+    '/api/invoices?status=trash&countOnly=1',
+    fetcher,
+  );
+  const trashCount = trashInfo?.count ?? 0;
+  const mutate = async () => {
+    await Promise.all([mutateList(), mutateTrash()]);
+    // Emptying the trash while looking at it leaves nothing to show there.
+    if (showTrash && trashCount <= 1) setShowTrash(false);
+  };
 
   const sorted = useMemo(() => {
     const rows = [...(data ?? [])].sort((a, b) => compare(a, b, sortField));
@@ -94,6 +109,7 @@ export default function InvoicesPage() {
           select
           label={t('invoices.status')}
           value={status}
+          disabled={showTrash}
           onChange={(e) => setStatus(e.target.value)}
           sx={{ minWidth: { sm: 180 } }}
         >
@@ -127,6 +143,17 @@ export default function InvoicesPage() {
             </IconButton>
           </Tooltip>
         </Stack>
+        {(trashCount > 0 || showTrash) && (
+          <Button
+            variant={showTrash ? 'contained' : 'outlined'}
+            color={showTrash ? 'primary' : 'inherit'}
+            startIcon={<DeleteOutlineIcon />}
+            onClick={() => setShowTrash((v) => !v)}
+            sx={{ flexShrink: 0, whiteSpace: 'nowrap', alignSelf: { sm: 'center' } }}
+          >
+            {showTrash ? t('invoices.backToInvoices') : t('invoices.inTrash', { count: trashCount })}
+          </Button>
+        )}
       </Stack>
 
       {isLoading ? (
@@ -134,17 +161,27 @@ export default function InvoicesPage() {
       ) : sorted.length === 0 ? (
         <EmptyState
           title={t('invoices.nothingHereTitle')}
-          description={t('invoices.nothingHereDescription')}
+          description={
+            showTrash
+              ? t('invoices.trashEmptyDescription', { days: TRASH_DAYS })
+              : t('invoices.nothingHereDescription')
+          }
           action={
-            <Button component={Link} href="/invoices/new" variant="contained">
-              {t('invoices.newInvoice')}
-            </Button>
+            showTrash ? undefined : (
+              <Button component={Link} href="/invoices/new" variant="contained">
+                {t('invoices.newInvoice')}
+              </Button>
+            )
           }
         />
       ) : (
         <Stack spacing={1}>
           {sorted.map((invoice) => (
-            <InvoiceCard key={invoice._id} invoice={invoice} onChanged={() => mutate()} />
+            showTrash ? (
+              <TrashedInvoiceCard key={invoice._id} invoice={invoice} onChanged={() => mutate()} />
+            ) : (
+              <InvoiceCard key={invoice._id} invoice={invoice} onChanged={() => mutate()} />
+            )
           ))}
         </Stack>
       )}
