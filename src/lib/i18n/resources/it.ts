@@ -101,7 +101,6 @@ const it: typeof en = {
     lastUpdated: 'Ultimo aggiornamento: {{date}}',
     privacy: 'Informativa sulla privacy',
     terms: 'Condizioni d’uso',
-    imprint: 'Note legali',
   },
   verifyEmail: {
     title: 'Conferma la tua email',
@@ -497,7 +496,6 @@ const it: typeof en = {
     deleteConfirmTitle: 'Eliminare il tuo account?',
     deleteConfirmMessage: 'Tutto viene rimosso subito e non può essere recuperato. Inserisci la password per confermare.',
     deleteConfirmLabel: 'Elimina tutto',
-    legalHeading: 'Note legali',
   },
 };
 

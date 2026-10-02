@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "cleanup:orphans": "node --env-file=.env.local scripts/cleanup-orphaned-entries.mjs"
+    "cleanup:orphans": "node --env-file=.env.local scripts/cleanup-orphaned-entries.mjs",
+    "wipe": "node --env-file=.env.local scripts/wipe-data.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.13.5",

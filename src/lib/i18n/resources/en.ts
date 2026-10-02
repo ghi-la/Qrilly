@@ -99,7 +99,6 @@ const en = {
     lastUpdated: 'Last updated: {{date}}',
     privacy: 'Privacy policy',
     terms: 'Terms of use',
-    imprint: 'Imprint',
   },
   verifyEmail: {
     title: 'Confirm your email',
@@ -495,7 +494,6 @@ const en = {
     deleteConfirmTitle: 'Delete your account?',
     deleteConfirmMessage: 'Everything is removed immediately and cannot be recovered. Enter your password to confirm.',
     deleteConfirmLabel: 'Delete everything',
-    legalHeading: 'Legal',
   },
 };
 

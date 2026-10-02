@@ -1,6 +1,6 @@
 import type { SupportedLanguage } from './i18n';
 
-export type LegalDoc = 'privacy' | 'terms' | 'imprint';
+export type LegalDoc = 'privacy' | 'terms';
 export interface LegalSection {
   heading: string;
   body: string[];
@@ -8,76 +8,48 @@ export interface LegalSection {
 
 export const LEGAL_UPDATED = '2026-10-01';
 
-/**
- * Who runs this instance. Set these in the environment; the placeholders make
- * it obvious on the page if they were forgotten.
- */
-export const OPERATOR = {
-  name: process.env.NEXT_PUBLIC_LEGAL_NAME || '[Operator name]',
-  address: process.env.NEXT_PUBLIC_LEGAL_ADDRESS || '[Street, ZIP City, Switzerland]',
-  email: process.env.NEXT_PUBLIC_LEGAL_EMAIL || '[contact email]',
-};
-
 type Content = Record<LegalDoc, LegalSection[]>;
 
 const en: Content = {
-  imprint: [
-    {
-      heading: 'Operator',
-      body: [`${OPERATOR.name}`, `${OPERATOR.address}`, `Email: ${OPERATOR.email}`],
-    },
-    {
-      heading: 'About this service',
-      body: [
-        'Qrilly is a tool for creating Swiss QR-bill invoices. The operator does not review the invoices created with it and is not a party to the contracts between users and their clients.',
-      ],
-    },
-  ],
   privacy: [
     {
-      heading: 'Who is responsible',
+      heading: 'No privacy guarantee',
       body: [
-        `${OPERATOR.name}, ${OPERATOR.address} ("we"), operates Qrilly. Contact for any privacy question: ${OPERATOR.email}.`,
-        'This policy follows the Swiss Federal Act on Data Protection (nFADP/nDSG).',
+        'Qrilly is a hobby-grade tool provided as is. The developer does not guarantee the privacy, confidentiality, integrity or availability of any data you enter, and accepts no responsibility of any kind for it. Use it only if you accept this.',
       ],
     },
     {
-      heading: 'What we store',
+      heading: 'What is stored',
       body: [
-        'Account: your name, email address and a hashed password (we never store the password itself).',
-        'Content you create: sender presets (your business name, address, IBAN, logo, numbering), clients, logged hours and invoices, including the names, addresses and email addresses of the people you bill.',
-        'Technical data: a session cookie that keeps you signed in, and your language and colour-mode choice kept in your browser. We do not use advertising or analytics trackers.',
+        'Account: your name, email address and a hashed password.',
+        'Content you create: sender presets (business name, address, IBAN, logo, numbering), clients, logged hours and invoices, including the names, addresses and email addresses of the people you bill.',
+        'Technical data: a session cookie that keeps you signed in, and your language and colour-mode choice kept in your browser. There are no advertising or analytics trackers.',
       ],
     },
     {
-      heading: 'Why we use it',
+      heading: 'Where it is stored and who can see it',
       body: [
-        'Only to run the service: to sign you in, to build and store your invoices and rebuild their PDFs, and to send the emails you ask for (confirmation, password reset, invoices).',
+        'Everything is stored in a cloud database (MongoDB Atlas), not locally, and the app is run by other third-party providers (hosting and email delivery). Those providers, and whoever administers the database, can access what is stored there.',
+        'Only some data is encrypted: client and invoice personal details (names, emails, addresses, notes, line-item text). Everything else - your account name and email, your sender presets including the IBAN, amounts, dates, invoice numbers, quantities and group names - is stored in plain, readable form, so the database administrator can see it. The encryption key is held by the service itself, so even encrypted data can be accessed by whoever controls it. Passwords are the only thing stored hashed.',
+        'Data may be processed on servers outside Switzerland.',
       ],
     },
     {
-      heading: 'How it is protected',
+      heading: 'Emails',
       body: [
-        'Passwords are stored hashed. Client and invoice personal details are encrypted at rest with a key per account, itself protected by a server-held master key; other data (such as your presets, amounts and dates) is stored readable. See the Terms of use for the exact list. Connections use HTTPS.',
-        'Encryption at rest protects against a leak of the database alone; it does not hide your data from the operator of the service, who holds the master key.',
+        'When you ask the app to send an email (account confirmation, password reset, an invoice to your client), the recipient address and the message, including any attached invoice PDF, pass through an email delivery provider.',
       ],
     },
     {
-      heading: 'Who else processes it',
+      heading: 'Your control',
       body: [
-        'We use service providers to run Qrilly: a hosting provider (Vercel), a database provider (MongoDB Atlas) and an email delivery provider (Resend). They process data on our behalf and may do so outside Switzerland, under appropriate safeguards.',
+        'You can download all your data and delete your account from Settings. Deleted invoices stay in a trash for 15 days before being removed. Deleting is on you: keep your own backups and records.',
       ],
     },
     {
-      heading: 'How long we keep it',
+      heading: 'Responsibility',
       body: [
-        'Until you delete it (deleted invoices stay in a trash for 15 days first). You can delete your account and all its data yourself under Settings. As the issuer of invoices you are responsible for meeting your own bookkeeping retention duties (generally 10 years in Switzerland) - export your data before deleting.',
-      ],
-    },
-    {
-      heading: 'Your rights',
-      body: [
-        'You can access and download your data (Settings, "Export your data"), correct it in the app, and delete it (Settings, "Delete account"). For anything else, or to complain, write to us. You may also contact the Federal Data Protection and Information Commissioner (FDPIC).',
+        'You are responsible for the data you enter, including the personal data of your clients, and for having the right to store it here. To the fullest extent permitted by law, the developer accepts no liability for any loss, leak, misuse or disclosure of data, whether caused by the developer, the providers, third parties or you.',
       ],
     },
   ],
@@ -137,63 +109,45 @@ const en: Content = {
 };
 
 const it: Content = {
-  imprint: [
-    {
-      heading: 'Gestore',
-      body: [`${OPERATOR.name}`, `${OPERATOR.address}`, `Email: ${OPERATOR.email}`],
-    },
-    {
-      heading: 'Informazioni sul servizio',
-      body: [
-        'Qrilly è uno strumento per creare fatture con polizza di versamento QR svizzera. Il gestore non controlla le fatture create e non è parte dei contratti tra gli utenti e i loro clienti.',
-      ],
-    },
-  ],
   privacy: [
     {
-      heading: 'Responsabile',
+      heading: 'Nessuna garanzia di privacy',
       body: [
-        `${OPERATOR.name}, ${OPERATOR.address} («noi»), gestisce Qrilly. Contatto per qualsiasi domanda sulla privacy: ${OPERATOR.email}.`,
-        'Questa informativa si basa sulla Legge federale sulla protezione dei dati (LPD).',
+        'Qrilly è uno strumento amatoriale fornito così com’è. Lo sviluppatore non garantisce la privacy, la riservatezza, l’integrità o la disponibilità dei dati che inserisci e non si assume alcuna responsabilità al riguardo. Usalo solo se lo accetti.',
       ],
     },
     {
-      heading: 'Cosa conserviamo',
+      heading: 'Cosa viene salvato',
       body: [
-        'Account: nome, indirizzo email e una password sotto forma di hash (non conserviamo mai la password in chiaro).',
+        'Account: nome, indirizzo email e una password sotto forma di hash.',
         'Contenuti che crei: preset mittente (nome dell’attività, indirizzo, IBAN, logo, numerazione), clienti, ore registrate e fatture, compresi nomi, indirizzi ed email delle persone a cui fatturi.',
-        'Dati tecnici: un cookie di sessione che ti mantiene connesso e la scelta di lingua e tema, salvate nel tuo browser. Non usiamo tracker pubblicitari o di analisi.',
+        'Dati tecnici: un cookie di sessione che ti mantiene connesso e la scelta di lingua e tema, salvate nel tuo browser. Non ci sono tracker pubblicitari o di analisi.',
       ],
     },
     {
-      heading: 'Perché li usiamo',
+      heading: 'Dove sono salvati e chi può vederli',
       body: [
-        'Solo per far funzionare il servizio: farti accedere, creare e conservare le fatture e ricreare i PDF, e inviare le email che richiedi (conferma, reimpostazione password, fatture).',
+        'Tutto è salvato in un database cloud (MongoDB Atlas), non in locale, e l’app è gestita da altri fornitori terzi (hosting e invio email). Questi fornitori, e chi amministra il database, possono accedere a ciò che vi è salvato.',
+        'Solo alcuni dati sono cifrati: i dati personali di clienti e fatture (nomi, email, indirizzi, note, testo delle righe). Tutto il resto - nome ed email dell’account, preset mittente compreso l’IBAN, importi, date, numeri di fattura, quantità e nomi dei gruppi - è salvato in chiaro, quindi l’amministratore del database può vederlo. La chiave di cifratura è custodita dal servizio stesso, quindi anche i dati cifrati sono accessibili a chi lo controlla. Le password sono l’unica cosa salvata con hash.',
+        'I dati possono essere trattati su server fuori dalla Svizzera.',
       ],
     },
     {
-      heading: 'Come sono protetti',
+      heading: 'Email',
       body: [
-        'Le password sono salvate con hash. I dati personali di clienti e fatture sono cifrati a riposo con una chiave per account, a sua volta protetta da una chiave principale custodita dal server; gli altri dati (come preset, importi e date) sono salvati in forma leggibile. Vedi le Condizioni d’uso per l’elenco esatto. Le connessioni usano HTTPS.',
-        'La cifratura a riposo protegge da una fuga del solo database; non nasconde i dati al gestore del servizio, che possiede la chiave principale.',
+        'Quando chiedi all’app di inviare un’email (conferma dell’account, reimpostazione della password, una fattura al tuo cliente), l’indirizzo del destinatario e il messaggio, compreso l’eventuale PDF allegato, passano da un servizio di invio email.',
       ],
     },
     {
-      heading: 'Chi altro li tratta',
+      heading: 'Il tuo controllo',
       body: [
-        'Per far funzionare Qrilly ci avvaliamo di fornitori: un servizio di hosting (Vercel), un database (MongoDB Atlas) e un servizio di invio email (Resend). Trattano i dati per nostro conto e possono farlo anche fuori dalla Svizzera, con garanzie adeguate.',
+        'Puoi scaricare tutti i tuoi dati ed eliminare l’account da Impostazioni. Le fatture eliminate restano 15 giorni nel cestino prima di essere rimosse. Eliminare spetta a te: conserva i tuoi backup e i tuoi registri.',
       ],
     },
     {
-      heading: 'Per quanto tempo',
+      heading: 'Responsabilità',
       body: [
-        'Finché non li elimini (le fatture eliminate restano 15 giorni nel cestino). Puoi eliminare l’account e tutti i dati da solo in Impostazioni. Come emittente di fatture sei responsabile del rispetto dei tuoi obblighi di conservazione contabile (in Svizzera in genere 10 anni) - esporta i dati prima di eliminarli.',
-      ],
-    },
-    {
-      heading: 'I tuoi diritti',
-      body: [
-        'Puoi accedere ai tuoi dati e scaricarli (Impostazioni, «Esporta i tuoi dati»), correggerli nell’app ed eliminarli (Impostazioni, «Elimina account»). Per il resto, o per un reclamo, scrivici. Puoi anche rivolgerti all’Incaricato federale della protezione dei dati e della trasparenza (IFPDT).',
+        'Sei responsabile dei dati che inserisci, compresi i dati personali dei tuoi clienti, e di avere il diritto di salvarli qui. Nella misura massima consentita dalla legge, lo sviluppatore non si assume alcuna responsabilità per perdita, fuga, uso improprio o divulgazione dei dati, sia causati dallo sviluppatore, dai fornitori, da terzi o da te.',
       ],
     },
   ],

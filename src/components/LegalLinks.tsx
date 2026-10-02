@@ -8,7 +8,7 @@ export default function LegalLinks({ sx }: { sx?: SxProps<Theme> }) {
   const { t } = useTranslation();
   return (
     <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" useFlexGap sx={sx}>
-      {(['privacy', 'terms', 'imprint'] as const).map((doc) => (
+      {(['terms', 'privacy'] as const).map((doc) => (
         <MuiLink key={doc} component={Link} href={`/${doc}`} variant="caption" color="text.secondary">
           {t(`legal.${doc}`)}
         </MuiLink>
